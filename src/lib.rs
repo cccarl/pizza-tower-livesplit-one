@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use asr::{Process, watcher::Pair};
 use rooms_ids::Level;
 use spinning_top::{Spinlock, const_spinlock};
@@ -30,8 +32,15 @@ struct MemoryValues {
     fps: Pair<i32>,
 }
 
+struct Setting<'a> {
+    key: &'a str,
+    description: &'a str,
+    default_value: bool,
+}
+
 struct State {
     started_up: bool,
+    settings: Lazy<HashMap<String, bool>>,
     main_process: Option<Process>,
     values: Lazy<MemoryValues>,
     current_level: Level,
@@ -83,6 +92,15 @@ impl State {
     }
 
     fn startup(&mut self) {
+
+        let settings_data = vec![
+            Setting { key: "full_game", description: "Full Game Mode", default_value: false }
+        ];
+
+        for setting in settings_data {
+            self.settings.insert(setting.key.to_string(), asr::user_settings::add_bool(setting.key, setting.description, setting.default_value));
+        }
+
         asr::set_tick_rate(10.0);
         self.started_up = true;
     }
@@ -117,77 +135,92 @@ impl State {
             return;
         }
 
-        // reset using score
-        if self.values.score.current == 0.0 && self.values.score.decreased() && asr::timer::state() == asr::timer::TimerState::Running {
-            asr::timer::reset();
-            asr::timer::start();
+        // reset using score and early return
+        if self.values.score.current == 0.0 && self.values.score.decreased() && asr::timer::state() == asr::timer::TimerState::Running && !self.settings["full_game"] {
             self.room_counter = 0;
+            self.rooms_tracker = vec![];
+            asr::timer::reset();
+            if rooms_ids::entered_level(self.values.room_id.current, self.current_level) != Some(Level::Hub) {
+                asr::timer::start();
+            }
+            return;
         }
-/*
-        // 757 hub at the very start
-	    if (self.values.room_id.current == 788 || self.values.room_id.current == 24) && self.values.room_id.changed() {
-            // delay start 13 frames so that the final split fits with real time 
-            sleep(Duration::from_millis(216));
-            asr::timer::start();
-        }
-*/
 
-        /*
-        if (self.values.room_id.current == 281 || self.values.room_id.current == self.values.room_id.old + 1) && self.values.room_id.changed() {
-            asr::timer::split();
-        }
-        */
+        // everything related to room changes
+        if self.values.room_id.changed() {
 
-        // detect level enter, which starts the timer
-        // TODO: find a way to reset even when we are in the first room of the level besides using the score
-        if self.values.room_id.changed() && asr::timer::state() == asr::timer::TimerState::NotRunning {
-            asr::print_message(&format!("New room: {}", self.values.room_id.current));
-            match rooms_ids::entered_level(self.values.room_id.current) {
+            if self.settings["full_game"] {
+                // start the timer in full game runs
+                if rooms_ids::entered_hub_start(self.values.room_id.current)  {
+                    asr::timer::start();
+                }
+                // split on any level exit
+                if rooms_ids::is_in_hub(self.values.room_id.current, self.current_level) && self.current_level != Level::Hub {
+                    asr::timer::split();
+                }
+                // pizza face defeated split
+                if self.values.room_id.current == 787 && self.values.room_id.old == 786 {
+                    asr::timer::split();
+                }
+                
+            } else {
+                // end of level screen split
+                if self.values.room_id.current == 281 {
+                    asr::timer::split();
+                }
+            }
+
+            // always check if player is in hub
+            if self.current_level != Level::F5CrumblingTower && rooms_ids::is_in_hub(self.values.room_id.current, self.current_level) {
+                self.current_level = Level::Hub;
+                asr::timer::set_variable("Current Level", &format!("{:?}", self.current_level));
+                
+                // TODO: find a way to reset even when we are in the first room of the level besides using the score
+                if asr::timer::state() == asr::timer::TimerState::Running && !self.settings["full_game"] {
+                    asr::timer::reset();
+                }
+            }
+
+            match rooms_ids::entered_level(self.values.room_id.current, self.current_level) {
                 Some(level) => {
-                    asr::timer::set_variable("Current Level", &format!("{:?}", self.current_level));
                     self.current_level = level;
                     self.current_level_rooms = rooms_ids::get_current_level_rooms(self.current_level);
-                    self.room_counter = 0;
-                    self.rooms_tracker = vec![];
-                    asr::timer::set_variable("Current Lvl", &format!("{:?}", self.current_level ));
-                    asr::timer::reset();
-                    asr::timer::start();
+                    asr::timer::set_variable("Current Level", &format!("{:?}", self.current_level ));
+
+                    if asr::timer::state() == asr::timer::TimerState::NotRunning {
+                        self.room_counter = 0;
+                        self.rooms_tracker = vec![];
+                        if !self.settings["full_game"] && self.current_level != Level::Hub {
+                            asr::timer::start();
+                        }
+                    }
                 },
+                // unknown room / level, keep the last valid one
                 None => {
                     asr::timer::set_variable("Current Level", &format!("{:?}", self.current_level));
                 },
             }
-        }
 
-        // always check if player is in hub
-        if self.values.room_id.changed() && rooms_ids::is_in_hub(self.values.room_id.current) {
-            self.current_level = Level::Hub;
-            asr::timer::set_variable("Current Level", &format!("{:?}", self.current_level));
-
-            if asr::timer::state() == asr::timer::TimerState::Running {
+            // reset in main menu
+            if self.values.room_id.current == 776 && asr::timer::state() == asr::timer::TimerState::Running {
                 asr::timer::reset();
             }
-        }     
 
+            // to help with the rooms vecs development, remove someday i guess
+            if asr::timer::state() == asr::timer::TimerState::Running {
+                self.rooms_tracker.push(self.values.room_id.current);
+                asr::print_message("New room entered:");
+                asr::print_message(&format!("{:?}", self.rooms_tracker) );
+            }
+        }   
 
-        // split
-        // advanced a room
-        asr::timer::set_variable("ROOMS LEN", &format!("{}", self.current_level_rooms.len()));
-        if self.current_level_rooms.len() > (self.room_counter + 1) as usize && self.values.room_id.current == self.current_level_rooms[(self.room_counter + 1) as usize] && self.values.room_id.old == self.current_level_rooms[self.room_counter as usize] {
-            asr::timer::split();
+        // advanced a room split
+        if self.current_level_rooms.len() > (self.room_counter + 1) as usize && self.values.room_id.current == self.current_level_rooms[(self.room_counter + 1) as usize] {
+            if !self.settings["full_game"] {
+                asr::timer::split();
+            }
             self.room_counter += 1;
             asr::timer::set_variable("Room Counter", &format!("{}", self.room_counter));
-        }
-
-        // end of level screen
-        if self.values.room_id.current == 281 && self.values.room_id.changed() {
-            asr::timer::split();
-        }
-
-        // to help with the rooms splits, remove someday i guess
-        if self.values.room_id.changed() && asr::timer::state() == asr::timer::TimerState::Running {
-            self.rooms_tracker.push(self.values.room_id.current);
-            asr::print_message(&format!("{:?}", self.rooms_tracker) );
         }
         
 
@@ -197,6 +230,7 @@ impl State {
 
 static LS_CONTROLLER: Spinlock<State> = const_spinlock(State {
     started_up: false,
+    settings: Lazy::new(HashMap::new),
     main_process: None,
     values: Lazy::new(Default::default),
     current_level: Level::Hub,
