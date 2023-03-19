@@ -2,7 +2,6 @@ use asr::{watcher::Pair, Process};
 use once_cell::sync::Lazy;
 use rooms_ids::Level;
 use spinning_top::{const_spinlock, Spinlock};
-use std::collections::HashMap;
 
 mod rooms_ids;
 mod settings;
@@ -46,7 +45,7 @@ struct State {
     started_up: bool,
     main_process: Option<Process>,
     main_address: asr::Address,
-    settings: Lazy<HashMap<String, bool>>,
+    settings: Option<settings::Settings>,
     values: Lazy<MemoryValues>,
     current_level: Level,
     current_level_rooms: Vec<i32>,
@@ -121,19 +120,7 @@ impl State {
     }
 
     fn startup(&mut self) {
-        let settings_data = settings::get_settings();
-
-        for setting in settings_data {
-            self.settings.insert(
-                setting.key.to_string(),
-                asr::user_settings::add_bool(
-                    setting.key,
-                    setting.description,
-                    setting.default_value,
-                ),
-            );
-        }
-
+        self.settings = Some(settings::Settings::register());
         asr::set_tick_rate(10.0);
         self.started_up = true;
     }
@@ -177,12 +164,15 @@ impl State {
             return;
         }
 
+        // unwrap settings
+        let Some(settings) = &self.settings else {return};
+
         // reset using IL timer
         if self.values.il_timer_seconds.decreased()
             && self.values.il_timer_minutes.current == 0.0
             && self.values.score.current == 0.0
             && asr::timer::state() == asr::timer::TimerState::Running
-            && !self.settings["full_game"]
+            && settings.full_game
         {
             self.room_counter = 0;
             self.rooms_tracker = vec![];
@@ -197,9 +187,9 @@ impl State {
 
         // everything related to room changes
         if self.values.room_id.changed() {
-            if self.settings["full_game"] {
+            if settings.full_game {
                 // start the timer in full game runs
-                if rooms_ids::entered_hub_start(self.values.room_id.current) {
+                if rooms_ids::entered_hub_start(self.values.room_id.current, self.values.room_id.old) {
                     asr::timer::start();
                 }
                 // split when in crumbling pizza last room and panic becomes 0
@@ -230,7 +220,7 @@ impl State {
 
                 // TODO: find a way to reset even when we are in the first room of the level besides using the score
                 if asr::timer::state() == asr::timer::TimerState::Running
-                    && !self.settings["full_game"]
+                    && !settings.full_game
                 {
                     asr::timer::reset();
                 }
@@ -242,7 +232,7 @@ impl State {
                     self.current_level_rooms =
                         rooms_ids::get_current_level_rooms(self.current_level);
                     asr::timer::set_variable("Current Level", &format!("{:?}", self.current_level));
-                    if !self.settings["full_game"]
+                    if !settings.full_game
                         && self.current_level != Level::Hub
                         && asr::timer::state() != asr::timer::TimerState::Running
                     {
@@ -278,7 +268,7 @@ impl State {
             && self.values.room_id.current
                 == self.current_level_rooms[(self.room_counter + 1) as usize]
         {
-            if !self.settings["full_game"] && self.settings["splits_rooms"] {
+            if !settings.full_game && settings.splits_rooms {
                 asr::timer::split();
             }
             self.room_counter += 1;
@@ -289,13 +279,13 @@ impl State {
         // WAR doesn't have a panic so it will use the old room id method that's off by ~0.21s
         if (self.values.panic.current == 0.0 && self.values.panic.old == 1.0
             || self.values.room_id.old == 610 && self.values.room_id.current == 281)
-            && !self.settings["full_game"]
+            && !settings.full_game
         {
             asr::timer::split();
         }
 
         // igt
-        let igt = if self.settings["full_game"] {
+        let igt = if settings.full_game {
             self.values.main_timer_minutes.current * 60.0 + self.values.main_timer_seconds.current
         } else {
             self.values.il_timer_minutes.current * 60.0 + self.values.il_timer_seconds.current
@@ -309,12 +299,13 @@ static LS_CONTROLLER: Spinlock<State> = const_spinlock(State {
     started_up: false,
     main_process: None,
     main_address: asr::Address(0),
-    settings: Lazy::new(HashMap::new),
+    settings: None,
     values: Lazy::new(Default::default),
     current_level: Level::Hub,
     current_level_rooms: vec![],
     room_counter: 0,
     rooms_tracker: vec![],
+    
 });
 
 #[no_mangle]

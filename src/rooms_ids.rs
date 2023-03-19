@@ -182,6 +182,6 @@ pub fn is_in_hub(room_id: i32, current_level: Level) -> bool {
 /**
  * used to start the timer in full game
  */
-pub fn entered_hub_start(room_id: i32) -> bool {
-    room_id == 757
+pub fn entered_hub_start(room_id_current: i32, room_id_old: i32) -> bool {
+    room_id_current == 757 && room_id_old == 798
 }
