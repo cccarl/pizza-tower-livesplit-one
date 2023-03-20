@@ -160,6 +160,38 @@ pub fn entered_level(room_id: i32, current_level: Level) -> Option<Level> {
     }
 }
 
+pub fn final_room(room_id: i32) -> Option<Level> {
+    match room_id {
+        788 => Some(Level::F1Tutorial),
+        24 => Some(Level::F1JohnGutter),
+        39 => Some(Level::F1Pizzascape),
+        54 => Some(Level::F1AncientCheese),
+        71 => Some(Level::F1BloodsauceDungeon),
+        719 => Some(Level::F2OreganoDesert),
+        123 => Some(Level::F2Wasteyard),
+        138 => Some(Level::F2FunFarm),
+        687 => Some(Level::F2FastfoodSaloon),
+        706 => Some(Level::F3CrustCove),
+        194 => Some(Level::F3GnomeForest),
+        229 => Some(Level::F3Golf),
+        241 => Some(Level::F3DeepDish9),
+        559 => Some(Level::F4ThePigCity),
+        830 => Some(Level::F4OhShit),
+        672 => Some(Level::F4PeppibotFactory),
+        441 => Some(Level::F4Refrigerator),
+        244 => Some(Level::F5Pizzascare),
+        596 => Some(Level::F5DMAS),
+        610 => Some(Level::F5War),
+        757 => Some(Level::F5CrumblingTower),
+        513 => Some(Level::Pepperman),
+        514 => Some(Level::Vigilante),
+        515 => Some(Level::Noise),
+        783 => Some(Level::Fake),
+        659 => Some(Level::PizzaFace),
+        _ => None,
+    }
+}
+
 /**
  * true if entered a known hub level, or is at the end screen of crumbling tower of pizza
  */

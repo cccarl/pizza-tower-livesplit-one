@@ -2,9 +2,9 @@
 
 To be used with LiveSplit's WASM runtime. Can be downloaded in releases or build it yourself.
 
-Recommendation: Start IL runs with an offset of -0.21 and full game runs with an offset of -0.35 for better accuracy. Note that it resets by reading the score going back to 0, which might be inconvenient in levels like the tutorial.
+Note: War's final split is -0.21 seconds late, an offset could fix that.
 
-To do: share splits so that you don't have to guess how many you will need for ILs. It's usually around 20, I recommend having more than needed, do a run, then remove the remaining empty splits.
+To do: share splits so that you don't have to guess how many you will need for ILs. It's usually around 20, I recommend having more than needed, do a run, then remove the remaining empty splits. As an alternative it's possible to disable the room splits in the settings.
 
 To build you need to add to the rust toolchain:
 

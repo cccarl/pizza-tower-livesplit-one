@@ -1,32 +1,15 @@
+mod memory;
+mod rooms_ids;
+mod settings;
+
 use asr::{watcher::Pair, Process};
 use once_cell::sync::Lazy;
 use rooms_ids::Level;
 use spinning_top::{const_spinlock, Spinlock};
 
-mod rooms_ids;
-mod settings;
-
 const MAIN_MODULE: &str = "PizzaTower.exe";
-const ROOM_ID_ADDRESS: u64 = 0x8A4588; // room id int in static memory
-const SCORE: [u64; 4] = [0x691898, 0x30, 0x180, 0x320];
-const IL_TIMER_SECONDS: [u64; 4] = [0x691898, 0x30, 0x880, 0xB0];
-const IL_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0xC0];
-const MAIN_TIMER_SECONDS: [u64; 4] = [0x691898, 0x30, 0x880, 0xD0];
-const MAIN_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0xE0];
-const PAUSE_MENU_OPEN: [u64; 4] = [0x691898, 0x30, 0x2E0, 0x880];
-const PANIC: [u64; 4] = [0x691898, 0x30, 0x8C0, 0x6E0];
-
-// kinda useless
-const FPS: u64 = 0x8A45BC;
-
-/**
- * update a pair and display it in the variable view of livesplit
- */
-fn update_pair<T: std::fmt::Display + Copy>(variable_name: &str, new_value: T, pair: &mut Pair<T>) {
-    asr::timer::set_variable(variable_name, &format!("{new_value}"));
-    pair.old = pair.current;
-    pair.current = new_value;
-}
+const IDLE_TICK_RATE: f64 = 10.0;
+const RUNNING_TICK_RATE: f64 = 120.0;
 
 #[derive(Default)]
 struct MemoryValues {
@@ -54,74 +37,10 @@ struct State {
 }
 
 impl State {
-    fn refresh_mem_values(&mut self) -> Result<(), &str> {
-        let process = if let Some(process) = self.main_process.as_ref() {
-            process
-        } else {
-            return Err("Process could not be loaded");
-        };
-
-        if let Ok(value) =
-            process.read_pointer_path64::<i32>(self.main_address.0, &[ROOM_ID_ADDRESS])
-        {
-            update_pair("Room ID", value, &mut self.values.room_id);
-        };
-
-        if let Ok(value) = process.read_pointer_path64::<f64>(self.main_address.0, &SCORE) {
-            update_pair("Score", value, &mut self.values.score);
-        };
-
-        if let Ok(value) =
-            process.read_pointer_path64::<f64>(self.main_address.0, &MAIN_TIMER_SECONDS)
-        {
-            update_pair(
-                "Main IGT Seconds",
-                value,
-                &mut self.values.main_timer_seconds,
-            );
-        };
-
-        if let Ok(value) =
-            process.read_pointer_path64::<f64>(self.main_address.0, &MAIN_TIMER_MINUTES)
-        {
-            update_pair(
-                "Main IGT Minutes",
-                value,
-                &mut self.values.main_timer_minutes,
-            );
-        };
-
-        if let Ok(value) =
-            process.read_pointer_path64::<f64>(self.main_address.0, &IL_TIMER_SECONDS)
-        {
-            update_pair("IL IGT Seconds", value, &mut self.values.il_timer_seconds);
-        };
-
-        if let Ok(value) =
-            process.read_pointer_path64::<f64>(self.main_address.0, &IL_TIMER_MINUTES)
-        {
-            update_pair("IL IGT Minutes", value, &mut self.values.il_timer_minutes);
-        };
-
-        if let Ok(value) = process.read_pointer_path64::<f64>(self.main_address.0, &PAUSE_MENU_OPEN)
-        {
-            update_pair("Paused", value, &mut self.values.pause_menu_open);
-        };
-
-        if let Ok(value) = process.read_pointer_path64::<f64>(self.main_address.0, &PANIC) {
-            update_pair("Panic", value, &mut self.values.panic);
-        };
-
-        if let Ok(value) = process.read_pointer_path64::<i32>(self.main_address.0, &[FPS]) {
-            update_pair("FPS", value, &mut self.values.fps);
-        };
-
-        Ok(())
-    }
 
     fn startup(&mut self) {
         self.settings = Some(settings::Settings::register());
-        asr::set_tick_rate(10.0);
+        asr::set_tick_rate(IDLE_TICK_RATE);
         self.started_up = true;
     }
 
@@ -136,7 +55,7 @@ impl State {
             None => return Err("Process info is not initialized."),
         };
 
-        asr::set_tick_rate(120.0);
+        asr::set_tick_rate(RUNNING_TICK_RATE);
         Ok(())
     }
 
@@ -145,19 +64,23 @@ impl State {
             self.startup();
         }
 
-        if self.main_process.is_none() {
-            self.main_process = Process::attach(MAIN_MODULE);
-            // early return to never work with a None process
-            if !(self.main_process.is_some() && self.init().is_ok()) {
+        match &self.main_process {
+            None => {
+                self.main_process = Process::attach(MAIN_MODULE);
+                if !(self.main_process.is_some() && self.init().is_ok()) {
+                    return;
+                }
+                // early return to never work with a None process
                 return;
             }
-        }
-
-        // if game is closed detatch and look for the game again
-        if !self.main_process.as_ref().unwrap().is_open() {
-            asr::set_tick_rate(10.0);
-            self.main_process = None;
-            return;
+            Some(process) => {
+                // if game is closed detatch and look for it again
+                if !process.is_open() {
+                    asr::set_tick_rate(IDLE_TICK_RATE);
+                    self.main_process = None;
+                    return;
+                }
+            }
         }
 
         if self.refresh_mem_values().is_err() {
@@ -165,14 +88,14 @@ impl State {
         }
 
         // unwrap settings
-        let Some(settings) = &self.settings else {return};
+        let Some(settings) = &self.settings else { return };
 
         // reset using IL timer
         if self.values.il_timer_seconds.decreased()
             && self.values.il_timer_minutes.current == 0.0
             && self.values.score.current == 0.0
             && asr::timer::state() == asr::timer::TimerState::Running
-            && settings.full_game
+            && !settings.full_game
         {
             self.room_counter = 0;
             self.rooms_tracker = vec![];
@@ -199,8 +122,9 @@ impl State {
                 {
                     asr::timer::split();
                 }
-                // split on any level exit
+                // split on any level exit from their first room
                 if rooms_ids::is_in_hub(self.values.room_id.current, self.current_level)
+                    && (rooms_ids::final_room(self.values.room_id.old).is_some() || self.values.room_id.old == 281)
                     && self.current_level != Level::Hub
                 {
                     asr::timer::split();
@@ -218,10 +142,7 @@ impl State {
                 self.current_level = Level::Hub;
                 asr::timer::set_variable("Current Level", &format!("{:?}", self.current_level));
 
-                // TODO: find a way to reset even when we are in the first room of the level besides using the score
-                if asr::timer::state() == asr::timer::TimerState::Running
-                    && !settings.full_game
-                {
+                if asr::timer::state() == asr::timer::TimerState::Running && !settings.full_game {
                     asr::timer::reset();
                 }
             }
@@ -254,13 +175,14 @@ impl State {
             {
                 asr::timer::reset();
             }
-
+            /*
             // to help with the rooms vecs development, remove someday i guess
             if asr::timer::state() == asr::timer::TimerState::Running {
                 self.rooms_tracker.push(self.values.room_id.current);
                 asr::print_message("New room entered:");
                 asr::print_message(&format!("{:?}", self.rooms_tracker));
             }
+            */
         }
 
         // advanced a room split
