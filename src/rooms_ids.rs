@@ -186,7 +186,7 @@ pub fn final_room(room_id: i32) -> Option<Level> {
         513 => Some(Level::Pepperman),
         514 => Some(Level::Vigilante),
         515 => Some(Level::Noise),
-        783 => Some(Level::Fake),
+        785 => Some(Level::Fake),
         659 => Some(Level::PizzaFace),
         _ => None,
     }
