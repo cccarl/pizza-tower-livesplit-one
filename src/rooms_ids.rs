@@ -117,7 +117,7 @@ pub fn get_current_level_rooms(level: Level) -> Vec<i32> {
         Level::Pepperman => vec![],
         Level::Vigilante => vec![],
         Level::Noise => vec![],
-        Level::Fake => vec![],
+        Level::Fake => vec![783, 784, 785],
         Level::PizzaFace => vec![],
     }
 }
