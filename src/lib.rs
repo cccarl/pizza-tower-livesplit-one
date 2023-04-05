@@ -1,7 +1,12 @@
+#![no_std]
+
 mod memory;
 mod rooms_ids;
 mod settings;
 
+#[macro_use]
+extern crate alloc;
+use alloc::{string::String, vec::Vec};
 use asr::{watcher::Pair, Process};
 use once_cell::sync::Lazy;
 use rooms_ids::Level;
@@ -12,8 +17,16 @@ const IDLE_TICK_RATE: f64 = 10.0;
 const RUNNING_TICK_RATE: f64 = 120.0;
 
 #[derive(Default)]
+struct MemoryAddresses {
+    main_address: Option<asr::Address>,
+    room_id: Option<asr::Address>,
+    room_id_names_pointer_array: Option<asr::Address>,
+}
+
+#[derive(Default)]
 struct MemoryValues {
-    room_id: Pair<i32>,
+    room_id: Pair<i32>, // room id int in static memory
+    room_name: Pair<String>,
     score: Pair<f64>,
     main_timer_minutes: Pair<f64>,
     main_timer_seconds: Pair<f64>,
@@ -27,9 +40,9 @@ struct MemoryValues {
 struct State {
     started_up: bool,
     main_process: Option<Process>,
-    main_address: asr::Address,
     settings: Option<settings::Settings>,
     values: Lazy<MemoryValues>,
+    addresses: Lazy<MemoryAddresses>,
     current_level: Level,
     current_level_rooms: Vec<i32>,
     room_counter: u32,
@@ -45,15 +58,17 @@ impl State {
     }
 
     fn init(&mut self) -> Result<(), &str> {
-        self.main_address = match &self.main_process {
+        self.addresses.main_address = match &self.main_process {
             Some(info) => match info.get_module_address(MAIN_MODULE) {
-                Ok(address) => address,
+                Ok(address) => Some(address),
                 Err(_) => {
                     return Err("Could not get main module address when refreshing memory values.")
                 }
             },
             None => return Err("Process info is not initialized."),
         };
+
+        self.room_name_array_sigscan_start()?;
 
         asr::set_tick_rate(RUNNING_TICK_RATE);
         Ok(())
@@ -98,7 +113,7 @@ impl State {
             && !settings.full_game
         {
             self.room_counter = 0;
-            self.rooms_tracker = vec![];
+            self.rooms_tracker = Vec::new();
             asr::timer::reset();
             if rooms_ids::entered_level(self.values.room_id.current, self.current_level)
                 != Some(Level::Hub)
@@ -220,9 +235,9 @@ impl State {
 static LS_CONTROLLER: Spinlock<State> = const_spinlock(State {
     started_up: false,
     main_process: None,
-    main_address: asr::Address(0),
     settings: None,
     values: Lazy::new(Default::default),
+    addresses: Lazy::new(Default::default),
     current_level: Level::Hub,
     current_level_rooms: vec![],
     room_counter: 0,
