@@ -6,7 +6,7 @@ mod settings;
 
 #[macro_use]
 extern crate alloc;
-use alloc::{string::String, vec::Vec};
+use alloc::string::{String};
 use asr::{watcher::Pair, Process};
 use once_cell::sync::Lazy;
 use rooms_ids::Level;
@@ -44,9 +44,8 @@ struct State {
     values: Lazy<MemoryValues>,
     addresses: Lazy<MemoryAddresses>,
     current_level: Level,
-    current_level_rooms: Vec<i32>,
-    room_counter: u32,
-    rooms_tracker: Vec<i32>,
+    prev_room_split: String,
+    split_igt: f64,
 }
 
 impl State {
@@ -105,121 +104,100 @@ impl State {
         // unwrap settings
         let Some(settings) = &self.settings else { return };
 
-        // reset using IL timer
+        // reset using IL timer in hub
         if self.values.il_timer_seconds.decreased()
             && self.values.il_timer_minutes.current == 0.0
             && self.values.score.current == 0.0
-            && asr::timer::state() == asr::timer::TimerState::Running
             && !settings.full_game
+            && asr::timer::state() == asr::timer::TimerState::Running
         {
-            self.room_counter = 0;
-            self.rooms_tracker = Vec::new();
             asr::timer::reset();
-            if rooms_ids::entered_level(self.values.room_id.current, self.current_level)
-                != Some(Level::Hub)
-            {
-                asr::timer::start();
-            }
-            return;
         }
 
-        // everything related to room changes
-        if self.values.room_id.changed() {
+        // start while in the first room of the level
+        if self.values.room_name.current == rooms_ids::get_starting_room(&self.current_level)
+            && !settings.full_game
+            && self.values.il_timer_minutes.current == 0.0
+            && self.values.il_timer_seconds.current < 0.2
+            && asr::timer::state() != asr::timer::TimerState::Running
+        {
+            self.prev_room_split = String::new();
+            asr::timer::reset();
+            asr::timer::start();
+        }
+
+        // room change actions
+        if self.values.room_name.changed() {
+            if let Some(level) = rooms_ids::get_current_level(&self.values.room_name.current){
+                self.current_level = level;
+            };
+
             if settings.full_game {
                 // start the timer in full game runs
-                if rooms_ids::entered_hub_start(self.values.room_id.current, self.values.room_id.old) {
+                if rooms_ids::entered_hub_start(&self.values.room_name.current, &self.values.room_name.old) {
                     asr::timer::start();
                 }
+
                 // split when in crumbling pizza last room and panic becomes 0
-                if self.current_level == Level::F5CrumblingTower
+                if self.current_level == Level::Hub
                     && self.values.panic.current == 0.0
                     && self.values.panic.old == 1.0
                 {
                     asr::timer::split();
                 }
+
                 // split on any level exit from their first room
-                if rooms_ids::is_in_hub(self.values.room_id.current, self.current_level)
-                    && (rooms_ids::final_room(self.values.room_id.old).is_some() || self.values.room_id.old == 281)
-                    && self.current_level != Level::Hub
+                if self.current_level == Level::Hub && rooms_ids::full_game_split_rooms(&self.values.room_name.old) {
+                    asr::timer::split();
+                }
+
+                // pizza face defeated split
+                if self.values.room_name.current == "boss_pizzafacehub" && self.values.room_name.old == "boss_pizzafacefinale" {
+                    asr::timer::split();
+                }
+            } 
+            // IL actions
+            else if !settings.full_game {
+
+                // split for new rooms, doesn't split if you enter a secret or the last room split triggered <3s ago 
+                if (self.values.room_name.current != self.prev_room_split 
+                    && self.values.room_name.old != self.prev_room_split
+                    || self.split_igt + 3.0 < (self.values.main_timer_seconds.current + self.values.main_timer_minutes.current * 60.0))
+                    && !self.values.room_name.current.contains("secret")
+                    && !self.values.room_name.old.contains("secret")
+                    && self.values.il_timer_seconds.current + self.values.il_timer_minutes.current * 60.0 > 1.0
                 {
                     asr::timer::split();
+                    self.prev_room_split = self.values.room_name.old.clone();
+                    self.split_igt = self.values.main_timer_seconds.current + self.values.main_timer_minutes.current * 60.0;
+                    asr::timer::set_variable("last split", &self.prev_room_split);
                 }
-                // pizza face defeated split
-                if self.values.room_id.current == 787 && self.values.room_id.old == 786 {
+                // secret splits
+                else if (self.values.room_name.current.contains("secret")
+                    || self.values.room_name.old.contains("secret"))
+                    && settings.splits_secrets 
+                {
                     asr::timer::split();
-                }
-            }
-
-            // always check if player is in hub
-            if self.current_level != Level::F5CrumblingTower
-                && rooms_ids::is_in_hub(self.values.room_id.current, self.current_level)
-            {
-                self.current_level = Level::Hub;
-                asr::timer::set_variable("Current Level", &format!("{:?}", self.current_level));
-
-                if asr::timer::state() == asr::timer::TimerState::Running && !settings.full_game {
-                    asr::timer::reset();
-                }
-            }
-
-            match rooms_ids::entered_level(self.values.room_id.current, self.current_level) {
-                Some(level) => {
-                    self.current_level = level;
-                    self.current_level_rooms =
-                        rooms_ids::get_current_level_rooms(self.current_level);
-                    asr::timer::set_variable("Current Level", &format!("{:?}", self.current_level));
-                    if !settings.full_game
-                        && self.current_level != Level::Hub
-                        && asr::timer::state() != asr::timer::TimerState::Running
-                    {
-                        self.room_counter = 0;
-                        self.rooms_tracker = vec![];
-                        asr::timer::reset();
-                        asr::timer::start();
-                    }
-                }
-                // unknown room / level, keep the last valid one
-                None => {
-                    asr::timer::set_variable("Current Level", &format!("{:?}", self.current_level));
                 }
             }
 
             // reset in main menu
-            if self.values.room_id.current == 776
+            if self.values.room_name.current == "Mainmenu"
                 && asr::timer::state() == asr::timer::TimerState::Running
             {
+                self.split_igt = 0.0;
                 asr::timer::reset();
             }
-            /*
-            // to help with the rooms vecs development, remove someday i guess
-            if asr::timer::state() == asr::timer::TimerState::Running {
-                self.rooms_tracker.push(self.values.room_id.current);
-                asr::print_message("New room entered:");
-                asr::print_message(&format!("{:?}", self.rooms_tracker));
-            }
-            */
-        }
 
-        // advanced a room split
-        if self.current_level_rooms.len() > (self.room_counter + 1) as usize
-            && self.values.room_id.current
-                == self.current_level_rooms[(self.room_counter + 1) as usize]
-        {
-            if !settings.full_game && settings.splits_rooms {
-                asr::timer::split();
-            }
-            self.room_counter += 1;
         }
-        asr::timer::set_variable("Room Counter", &format!("{}", self.room_counter));
+        asr::timer::set_variable("Current Level Enum", &format!("{:?}", self.current_level));
 
         // end of level split
-        // WAR doesn't have a panic so it will use the old room id method that's off by ~0.21s
-        if (self.values.panic.current == 0.0 && self.values.panic.old == 1.0
-            || self.values.room_id.old == 610 && self.values.room_id.current == 281)
-            && !settings.full_game
-        {
+        if self.values.panic.current == 0.0 && self.values.panic.old == 1.0 && !settings.full_game 
+            && self.values.il_timer_seconds.current + self.values.il_timer_minutes.current * 60.0 > 1.0 {
             asr::timer::split();
         }
+
 
         // igt
         let igt = if settings.full_game {
@@ -239,10 +217,8 @@ static LS_CONTROLLER: Spinlock<State> = const_spinlock(State {
     values: Lazy::new(Default::default),
     addresses: Lazy::new(Default::default),
     current_level: Level::Hub,
-    current_level_rooms: vec![],
-    room_counter: 0,
-    rooms_tracker: vec![],
-    
+    prev_room_split: String::new(),
+    split_igt: 0.0,
 });
 
 #[no_mangle]

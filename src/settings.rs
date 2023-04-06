@@ -6,4 +6,7 @@ pub struct Settings {
     #[default = true]
     /// Split on new rooms
     pub splits_rooms: bool,
+    #[default = true]
+    /// Split on secrets
+    pub splits_secrets: bool,
 }
