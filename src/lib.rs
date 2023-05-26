@@ -83,6 +83,8 @@ impl State {
     }
 
     fn init(&mut self) -> Result<(), &str> {
+
+        asr::print_message("----Game Found----");
         self.addresses.main_address = match &self.main_process {
             Some(info) => match info.get_module_address(MAIN_MODULE) {
                 Ok(address) => Some(address),
@@ -93,11 +95,45 @@ impl State {
             None => return Err("Process info is not initialized."),
         };
 
+        // find room ID in memory
+        self.addresses.room_id = match self.room_id_sigscan_start() {
+            Ok(address) => Some(address),
+            Err(_) => None,
+        };
+
+        // stall until a room is read, that way we know the main game has loaded
+        if let Some(process) = self.main_process.as_ref() {
+
+            let igt_room_id_address = self.addresses.main_address.unwrap_or(asr::Address::new(0)).value() + self.addresses.room_id.unwrap_or(asr::Address::new(0)).value();
+            if igt_room_id_address == 0 {
+                return Err("Nonsense address calculated (0) when stalling for the loading times aboorting init...");
+            }
+
+            asr::print_message("Waiting for the game to open...");
+            loop {
+                if let Ok(room_id) = process.read::<i32>(asr::Address::new(igt_room_id_address)) {
+                    if room_id != 0 {
+                        break;
+                    }
+                }
+            }
+        } else {
+            asr::print_message("Could not load process after finding the room ID address");
+            return Err("Could not load process");
+        };
+
+        // find room names array in memory
+        self.addresses.room_id_names_pointer_array = match self.room_name_array_sigscan_start() {
+            Ok(address) => Some(address),
+            Err(_) => None,
+        };
+
+        // find the speedrun IGT or use the hardcoded path
         self.addresses.speedrun_igt_start = match self.speedrun_timer_sigscan_init() {
             Ok(address) => Some(address),
             Err(_) => None,
         };
-        self.room_name_array_sigscan_start()?;
+        
 
 
         asr::set_tick_rate(RUNNING_TICK_RATE);
