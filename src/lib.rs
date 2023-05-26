@@ -1,5 +1,4 @@
 #![no_std]
-
 mod memory;
 mod rooms_ids;
 mod settings;
@@ -7,20 +6,23 @@ mod settings;
 #[macro_use]
 extern crate alloc;
 use alloc::string::{String};
-use asr::{watcher::Pair, Process};
+use asr::{watcher::Pair, Process, timer::TimerState};
 use once_cell::sync::Lazy;
 use rooms_ids::Level;
+use settings::Settings;
 use spinning_top::{const_spinlock, Spinlock};
 
 const MAIN_MODULE: &str = "PizzaTower.exe";
 const IDLE_TICK_RATE: f64 = 10.0;
 const RUNNING_TICK_RATE: f64 = 120.0;
 
+
 #[derive(Default)]
 struct MemoryAddresses {
     main_address: Option<asr::Address>,
     room_id: Option<asr::Address>,
     room_id_names_pointer_array: Option<asr::Address>,
+    speedrun_igt_start: Option<asr::Address>,
 }
 
 #[derive(Default)]
@@ -32,6 +34,8 @@ struct MemoryValues {
     main_timer_seconds: Pair<f64>,
     il_timer_minutes: Pair<f64>,
     il_timer_seconds: Pair<f64>,
+    speedrun_main_frames: Pair<f64>,
+    speedrun_il_frames: Pair<f64>,
     pause_menu_open: Pair<f64>,
     panic: Pair<f64>,
     fps: Pair<i32>,
@@ -46,9 +50,31 @@ struct State {
     current_level: Level,
     prev_room_split: String,
     split_igt: f64,
+    start_time: f64,
 }
 
 impl State {
+
+    fn get_igt(&self, settings: &Settings) -> f64 {
+        match self.addresses.speedrun_igt_start {
+            // found speedrun igt
+            Some(_) => {
+                if settings.full_game {
+                    self.values.speedrun_main_frames.current / 60.0
+                } else {
+                    self.values.speedrun_il_frames.current / 60.0
+                }
+            },
+            // not found speedrun igt, use hardcoded path
+            None => {
+                if settings.full_game {
+                    self.values.main_timer_minutes.current * 60.0 + self.values.main_timer_seconds.current
+                } else {
+                    self.values.il_timer_minutes.current * 60.0 + self.values.il_timer_seconds.current
+                }
+            },
+        }
+    }
 
     fn startup(&mut self) {
         self.settings = Some(settings::Settings::register());
@@ -67,7 +93,12 @@ impl State {
             None => return Err("Process info is not initialized."),
         };
 
+        self.addresses.speedrun_igt_start = match self.speedrun_timer_sigscan_init() {
+            Ok(address) => Some(address),
+            Err(_) => None,
+        };
         self.room_name_array_sigscan_start()?;
+
 
         asr::set_tick_rate(RUNNING_TICK_RATE);
         Ok(())
@@ -81,7 +112,12 @@ impl State {
         match &self.main_process {
             None => {
                 self.main_process = Process::attach(MAIN_MODULE);
-                if !(self.main_process.is_some() && self.init().is_ok()) {
+                if self.main_process.is_none() {
+                    return;
+                }
+                let init_result = self.init();
+                if init_result.is_err() {
+                    asr::print_message(init_result.unwrap_err());
                     return;
                 }
                 // early return to never work with a None process
@@ -92,6 +128,7 @@ impl State {
                 if !process.is_open() {
                     asr::set_tick_rate(IDLE_TICK_RATE);
                     self.main_process = None;
+                    self.addresses = Default::default();
                     return;
                 }
             }
@@ -111,6 +148,7 @@ impl State {
             && !settings.full_game
             && asr::timer::state() == asr::timer::TimerState::Running
         {
+            self.start_time = 0.0;
             asr::timer::reset();
         }
 
@@ -122,6 +160,7 @@ impl State {
             && asr::timer::state() != asr::timer::TimerState::Running
         {
             self.prev_room_split = String::new();
+            self.start_time = 0.0;
             asr::timer::reset();
             asr::timer::start();
         }
@@ -138,11 +177,8 @@ impl State {
                     asr::timer::start();
                 }
 
-                // split when in crumbling pizza last room and panic becomes 0
-                if self.current_level == Level::Hub
-                    && self.values.panic.current == 0.0
-                    && self.values.panic.old == 1.0
-                {
+                // split when in crumbling pizza last room and enter rank screen (~0.3 late rta)
+                if self.values.room_name.old == "tower_entrancehall" && self.values.room_name.current == "rank_room" {
                     asr::timer::split();
                 }
 
@@ -186,7 +222,14 @@ impl State {
                 && asr::timer::state() == asr::timer::TimerState::Running
             {
                 self.split_igt = 0.0;
+                self.start_time = 0.0;
                 asr::timer::reset();
+            }
+
+            // start on level exit
+            if settings.start_on_exit && rooms_ids::full_game_split_rooms(&self.values.room_name.old) && asr::timer::state() == TimerState::NotRunning {
+                self.start_time = self.get_igt(settings);
+                asr::timer::start();
             }
 
         }
@@ -200,12 +243,10 @@ impl State {
 
 
         // igt
-        let igt = if settings.full_game {
-            self.values.main_timer_minutes.current * 60.0 + self.values.main_timer_seconds.current
-        } else {
-            self.values.il_timer_minutes.current * 60.0 + self.values.il_timer_seconds.current
-        };
-        asr::timer::set_game_time(asr::time::Duration::seconds_f64(igt));
+        let igt: f64 = self.get_igt(settings);
+        
+
+        asr::timer::set_game_time(asr::time::Duration::seconds_f64(igt - self.start_time));
         asr::timer::pause_game_time();
     }
 }
@@ -219,6 +260,7 @@ static LS_CONTROLLER: Spinlock<State> = const_spinlock(State {
     current_level: Level::Hub,
     prev_room_split: String::new(),
     split_igt: 0.0,
+    start_time: 0.0,
 });
 
 #[no_mangle]

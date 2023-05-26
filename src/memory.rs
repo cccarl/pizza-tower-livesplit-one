@@ -1,20 +1,45 @@
 use alloc::string::String;
-use asr::{watcher::Pair, Address, Process};
-use asr::signature::Signature;
+use asr::{watcher::Pair, Address, Process, signature::Signature};
 use crate::State;
 
 const SCORE: [u64; 4] = [0x691898, 0x30, 0x180, 0x320];
+
 const IL_TIMER_SECONDS: [u64; 4] = [0x691898, 0x30, 0x880, 0xB0];
 const IL_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0xC0];
 const MAIN_TIMER_SECONDS: [u64; 4] = [0x691898, 0x30, 0x880, 0xD0];
 const MAIN_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0xE0];
+
 const PAUSE_MENU_OPEN: [u64; 4] = [0x691898, 0x30, 0x2E0, 0x880];
 const PANIC: [u64; 4] = [0x691898, 0x30, 0x8C0, 0x6E0];
+
+// for practice mod 1.4
+
+/* const IL_TIMER_SECONDS: [u64; 4] = [0x691898, 0x30, 0x880, 0x100];
+const IL_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0x110];
+const MAIN_TIMER_SECONDS: [u64; 4] = [0x691898, 0x30, 0x880, 0x120];
+const MAIN_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0x130]; */
+
 // kinda useless
 const FPS: u64 = 0x8A45BC;
 
+// the array with all the room names
 const ROOM_ID_ARRAY_SIG: Signature<13> = Signature::new("74 0C 48 8B 05 ?? ?? ?? ?? 48 8B 04 D0");
+// the id of the current room the player is on (i32)
 const ROOM_ID_SIG: Signature<9> = Signature::new("89 3D ?? ?? ?? ?? 48 3B 1D");
+
+// TEST: the signature for the mod to get the speedrun IGTs
+const SPEEDRUN_IGT: Signature<56> = Signature::new(
+    concat!(
+        "00 00 00 00 00 2E B6 40", // 5678
+        "?? ?? ?? ?? ?? ?? ?? ??",
+        "?? ?? ?? ?? ?? ?? ?? ??", // level igt
+        "?? ?? ?? ?? ?? ?? ?? ??",
+        "?? ?? ?? ?? ?? ?? ?? ??", // file igt
+        "?? ?? ?? ?? ?? ?? ?? ??",
+        "00 00 00 00 00 48 93 40"  // 1234
+    )
+);
+
 
 /**
  * update a pair and display it in the variable view of livesplit
@@ -85,6 +110,7 @@ impl State {
             Err(_) => return Err("Could not read the array address"),
         };
 
+        asr::timer::set_variable("Room Id Address", &format!("{:X}", pointer_to_rooms_array.0));
         asr::print_message("Room name array signature scan complete.");
 
         // room id sigscan
@@ -103,6 +129,26 @@ impl State {
         asr::print_message("Room ID signature scan complete.");
 
         Ok(())
+    }
+
+    pub fn speedrun_timer_sigscan_init(&self) -> Result<asr::Address, &str> {
+
+        // idk just some random ass number, TODO: do it like og ls when possible, it iterates through the memory pages
+        let size = 0x32000000;
+        let process = self.main_process.as_ref().ok_or("Could not get process from state struct.")?;
+
+        // this is a direct reference to the speedrun data, finding the scanned address is enough
+        let igt_address = if let Some(add) = SPEEDRUN_IGT.scan_process_range(process, Address(0), size) {
+            add
+        } else {
+            let error_message = "Could not complete the IGT sigscan";
+            asr::print_message(error_message);
+            return Err(error_message);
+        };
+
+        asr::timer::set_variable("IGT address", &format!("{:X}", igt_address.0));
+        asr::print_message("IGT sigscan complete");
+        Ok(igt_address)
     }
 
     pub fn refresh_mem_values(&mut self) -> Result<(), &str> {
@@ -130,37 +176,81 @@ impl State {
             update_pair("Score", value, &mut self.values.score);
         };
 
-        if let Ok(value) =
-            process.read_pointer_path64::<f64>(main_address, &MAIN_TIMER_SECONDS)
-        {
-            update_pair(
-                "Main IGT Seconds",
-                value,
-                &mut self.values.main_timer_seconds,
-            );
-        };
+        // only update if speedrun/frame igt address was found
+        if let Some(_) = self.addresses.speedrun_igt_start {
 
-        if let Ok(value) =
-            process.read_pointer_path64::<f64>(main_address, &MAIN_TIMER_MINUTES)
-        {
-            update_pair(
-                "Main IGT Minutes",
-                value,
-                &mut self.values.main_timer_minutes,
-            );
-        };
+            let il_address = self.addresses.speedrun_igt_start.unwrap_or(Address(0)).0 + 0x10;
+            let full_game_addres = self.addresses.speedrun_igt_start.unwrap_or(Address(0)).0 + 0x20;
+            let level_seconds_add = self.addresses.speedrun_igt_start.unwrap_or(Address(0)).0 + 0x40;
+            let level_minutes_add = self.addresses.speedrun_igt_start.unwrap_or(Address(0)).0 + 0x50;
+            let game_seconds_add = self.addresses.speedrun_igt_start.unwrap_or(Address(0)).0 + 0x60;
+            let game_minutes_add = self.addresses.speedrun_igt_start.unwrap_or(Address(0)).0 + 0x70;
 
-        if let Ok(value) =
-            process.read_pointer_path64::<f64>(main_address, &IL_TIMER_SECONDS)
-        {
-            update_pair("IL IGT Seconds", value, &mut self.values.il_timer_seconds);
-        };
+            if let Ok(value) = process.read::<f64>(Address(il_address)) {
+                update_pair("IL Frames", value, &mut self.values.speedrun_il_frames);
+            }
 
-        if let Ok(value) =
-            process.read_pointer_path64::<f64>(main_address, &IL_TIMER_MINUTES)
-        {
-            update_pair("IL IGT Minutes", value, &mut self.values.il_timer_minutes);
-        };
+            if let Ok(value) = process.read::<f64>(Address(full_game_addres)) {
+                update_pair("FULL GAME Frames", value, &mut self.values.speedrun_main_frames);
+            }
+
+            if let Ok(value) = process.read::<f64>(Address(game_seconds_add)) {
+                update_pair(
+                    "Main IGT Seconds",
+                    value,
+                    &mut self.values.main_timer_seconds,
+                );
+            };
+
+            if let Ok(value) = process.read::<f64>(Address(game_minutes_add)) {
+                update_pair(
+                    "Main IGT Minutes",
+                    value,
+                    &mut self.values.main_timer_minutes,
+                );
+            };
+
+            if let Ok(value) = process.read::<f64>(Address(level_seconds_add)) {
+                update_pair("IL IGT Seconds", value, &mut self.values.il_timer_seconds);
+            };
+
+            if let Ok(value) = process.read::<f64>(Address(level_minutes_add)) {
+                update_pair("IL IGT Minutes", value, &mut self.values.il_timer_minutes);
+            };
+
+        } else {
+
+            // only use hardcoded path if igt sigscan didn't work
+            if let Ok(value) = process.read_pointer_path64::<f64>(main_address, &MAIN_TIMER_SECONDS)
+            {
+                update_pair(
+                    "Main IGT Seconds",
+                    value,
+                    &mut self.values.main_timer_seconds,
+                );
+            };
+
+            if let Ok(value) = process.read_pointer_path64::<f64>(main_address, &MAIN_TIMER_MINUTES)
+            {
+                update_pair(
+                    "Main IGT Minutes",
+                    value,
+                    &mut self.values.main_timer_minutes,
+                );
+            };
+
+            if let Ok(value) = process.read_pointer_path64::<f64>(main_address, &IL_TIMER_SECONDS)
+            {
+                update_pair("IL IGT Seconds", value, &mut self.values.il_timer_seconds);
+            };
+
+            if let Ok(value) = process.read_pointer_path64::<f64>(main_address, &IL_TIMER_MINUTES)
+            {
+                update_pair("IL IGT Minutes", value, &mut self.values.il_timer_minutes);
+            };
+
+        }
+
 
         if let Ok(value) = process.read_pointer_path64::<f64>(main_address, &PAUSE_MENU_OPEN)
         {
