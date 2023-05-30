@@ -2,9 +2,24 @@
 
 To be used with LiveSplit's WASM runtime. Can be downloaded in releases or build it yourself.
 
-Note: War's final split is -0.21 seconds late, an offset could fix that.
+## Features:
 
-To do: share splits so that you don't have to guess how many you will need for ILs. It's usually around 20, I recommend having more than needed, do a run, then remove the remaining empty splits. As an alternative it's possible to disable the room splits in the settings.
+* Full game autosplitter mode, splits when exiting the last room of each level, starts when starting a new file and resets when going back to the main menu.
+* IL autosplitter mode, starts when entering any level, resets on level restarts or going back to the hub, and splits on every new room the player enters. 
+* Reads the game time of the game, also compatible with the Speedrun IGT Mod: https://gamebanana.com/mods/445080
+* Robust against game updates.
+
+## How to add to LiveSplit:
+
+1. Right Click.
+2. Edit Layout...
+3. \+ Button -> Control -> Auto Splitting Runtime.
+4. Open the added component and look for the WASM file using the file explorer at the top of the window.
+
+Note: WAR's final split is -0.21 seconds late, an offset could fix that.
+
+
+# Building the WASM file
 
 To build you need to add to the rust toolchain:
 
