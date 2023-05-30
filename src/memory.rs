@@ -2,8 +2,6 @@ use alloc::string::String;
 use asr::{watcher::Pair, Address, Process, signature::Signature};
 use crate::State;
 
-const SCORE: [u64; 4] = [0x691898, 0x30, 0x180, 0x320];
-
 const IL_TIMER_SECONDS: [u64; 4] = [0x691898, 0x30, 0x880, 0xB0];
 const IL_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0xC0];
 const MAIN_TIMER_SECONDS: [u64; 4] = [0x691898, 0x30, 0x880, 0xD0];
@@ -12,7 +10,7 @@ const MAIN_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0xE0];
 const PAUSE_MENU_OPEN: [u64; 4] = [0x691898, 0x30, 0x2E0, 0x880];
 const PANIC: [u64; 4] = [0x691898, 0x30, 0x8C0, 0x6E0];
 
-// for practice mod 1.4
+// for practice mod 1.4+
 
 /* const IL_TIMER_SECONDS: [u64; 4] = [0x691898, 0x30, 0x880, 0x100];
 const IL_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0x110];
@@ -209,9 +207,6 @@ impl State {
             update_pair("Room ID", value, &mut self.values.room_id);
         };
 
-        if let Ok(value) = process.read_pointer_path64::<f64>(main_address, &SCORE) {
-            update_pair("Score", value, &mut self.values.score);
-        };
 
         // only update if speedrun/frame igt address was found
         if let Some(_) = self.addresses.speedrun_igt_start {

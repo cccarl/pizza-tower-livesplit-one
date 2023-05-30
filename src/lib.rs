@@ -29,7 +29,6 @@ struct MemoryAddresses {
 struct MemoryValues {
     room_id: Pair<i32>, // room id int in static memory
     room_name: Pair<String>,
-    score: Pair<f64>,
     main_timer_minutes: Pair<f64>,
     main_timer_seconds: Pair<f64>,
     il_timer_minutes: Pair<f64>,
@@ -106,7 +105,7 @@ impl State {
 
             let igt_room_id_address = self.addresses.main_address.unwrap_or(asr::Address::new(0)).value() + self.addresses.room_id.unwrap_or(asr::Address::new(0)).value();
             if igt_room_id_address == 0 {
-                return Err("Nonsense address calculated (0) when stalling for the loading times aboorting init...");
+                return Err("Nonsense address calculated (0) when stalling for the loading times, aborting init...");
             }
 
             asr::print_message("Waiting for the game to open...");
@@ -171,16 +170,18 @@ impl State {
         }
 
         if self.refresh_mem_values().is_err() {
+            asr::print_message("Failed to update memory values, retrying process attachment...");
+            self.main_process = None;
+            self.addresses = Default::default();
             return;
         }
 
         // unwrap settings
         let Some(settings) = &self.settings else { return };
 
-        // reset using IL timer in hub
+        // reset using IL timer
         if self.values.il_timer_seconds.decreased()
             && self.values.il_timer_minutes.current == 0.0
-            && self.values.score.current == 0.0
             && !settings.full_game
             && asr::timer::state() == asr::timer::TimerState::Running
         {
@@ -188,7 +189,7 @@ impl State {
             asr::timer::reset();
         }
 
-        // start while in the first room of the level
+        // start when entering first room of the level
         if self.values.room_name.current == rooms_ids::get_starting_room(&self.current_level)
             && !settings.full_game
             && self.values.il_timer_minutes.current == 0.0
