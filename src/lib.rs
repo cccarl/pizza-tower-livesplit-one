@@ -249,7 +249,7 @@ impl State {
                 else if (self.values.room_name.current.contains("secret")
                     || self.values.room_name.old.contains("secret"))
                     && settings.splits_secrets
-                    && !rooms_ids::full_game_split_rooms(&self.values.room_name.current) // avoid splits when restarting inside secret
+                    && rooms_ids::get_starting_room(&self.current_level) != self.values.room_name.current // avoid splits when restarting inside secret
                 {
                     asr::timer::split();
                 }
