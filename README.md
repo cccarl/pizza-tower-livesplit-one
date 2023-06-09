@@ -27,7 +27,7 @@ To build you need to add to the rust toolchain:
 
 Recommended to use cargo watch while developing:
 
-* `cargo watch -x "build --target wasm32-unknown-unknown"`
+* ` $ cargo watch -x "build --target wasm32-unknown-unknown"`
 
 To build for release:
 
