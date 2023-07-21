@@ -1,13 +1,13 @@
 # Pizza Tower Livesplit One Autosplitter
 
-To be used with LiveSplit's WASM runtime. Can be downloaded in releases or build it yourself.
+Experimental Autosplitter for Pizza Tower using the new autosplitting runtime for LiveSplit One and LiveSplit. If you only want to use it for full game runs with the original LiveSplit, I recommend simply using the official AutoSplitter that can be found in the "Edit Splits" menu instead!
 
 ## Features:
 
 * Full game autosplitter mode, splits when exiting the last room of each level, starts when starting a new file and resets when going back to the main menu.
 * IL autosplitter mode, starts when entering any level, resets on level restarts or going back to the hub, and splits on every new room the player enters. 
 * Reads the game time of the game, also compatible with the Speedrun IGT Mod: https://gamebanana.com/mods/445080
-* Robust against game updates.
+* Most features are robust against game updates.
 
 ## How to add to LiveSplit:
 
