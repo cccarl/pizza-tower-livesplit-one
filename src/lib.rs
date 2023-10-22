@@ -5,7 +5,7 @@ mod settings;
 
 #[macro_use]
 extern crate alloc;
-use alloc::string::{String};
+use alloc::string::String;
 use asr::{watcher::Pair, Process, timer::TimerState};
 use once_cell::sync::Lazy;
 use rooms_ids::Level;
@@ -14,7 +14,7 @@ use spinning_top::{const_spinlock, Spinlock};
 
 const MAIN_MODULE: &str = "PizzaTower.exe";
 const IDLE_TICK_RATE: f64 = 10.0;
-const RUNNING_TICK_RATE: f64 = 120.0;
+const RUNNING_TICK_RATE: f64 = 60.0;
 
 
 #[derive(Default)]
@@ -41,6 +41,7 @@ struct MemoryValues {
 }
 
 struct State {
+    full_game_split_enabled: bool,
     started_up: bool,
     main_process: Option<Process>,
     settings: Option<settings::Settings>,
@@ -214,21 +215,33 @@ impl State {
                     asr::timer::start();
                 }
 
-                // split when in crumbling pizza last room and enter rank screen (~0.3 late rta)
-                if self.values.room_name.old == "tower_entrancehall" && self.values.room_name.current == "rank_room" {
-                    asr::timer::split();
-                }
+                // they can be "disabled" for when the player enters a level then leaves immediately, they have to go through certain room first for them to unlock
+                if self.full_game_split_enabled {
+                    // split when in crumbling pizza last room and enter rank screen (~0.3 late rta)
+                    if self.values.room_name.old == "tower_entrancehall" && self.values.room_name.current == "rank_room" {
+                        asr::timer::split();
+                    }
 
-                // split on any level exit from their first room
-                if self.current_level == Level::Hub && rooms_ids::full_game_split_rooms(&self.values.room_name.old) {
-                    asr::timer::split();
-                }
+                    // split on any level exit from their first room
+                    if self.current_level == Level::Hub && rooms_ids::full_game_split_rooms(&self.values.room_name.old) {
+                        asr::timer::split();
+                    }
 
-                // pizza face defeated split
-                if self.values.room_name.current == "boss_pizzafacehub" && self.values.room_name.old == "boss_pizzafacefinale" {
-                    asr::timer::split();
+                    // pizza face defeated split
+                    if self.values.room_name.current == "boss_pizzafacehub" && self.values.room_name.old == "boss_pizzafacefinale" {
+                        asr::timer::split();
+                    }
                 }
-            } 
+            }
+
+            // enable/disable full game splits depending on current room or level
+            if rooms_ids::full_game_split_unlock_rooms(&self.values.room_name.current) {
+                self.full_game_split_enabled = true;
+            }
+            else if self.current_level == rooms_ids::Level::Hub {
+                self.full_game_split_enabled = false;
+            }
+
             // IL actions
             else if !settings.full_game {
 
@@ -279,17 +292,17 @@ impl State {
             asr::timer::split();
         }
 
-
         // igt
-        let igt: f64 = self.get_igt(settings);
-        
-
-        asr::timer::set_game_time(asr::time::Duration::seconds_f64(igt - self.start_time));
-        asr::timer::pause_game_time();
+        if settings.save_igt {
+            let igt: f64 = self.get_igt(settings);
+            asr::timer::set_game_time(asr::time::Duration::seconds_f64(igt - self.start_time));
+            asr::timer::pause_game_time();
+        }
     }
 }
 
 static LS_CONTROLLER: Spinlock<State> = const_spinlock(State {
+    full_game_split_enabled: false,
     started_up: false,
     main_process: None,
     settings: None,

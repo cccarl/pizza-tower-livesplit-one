@@ -91,6 +91,7 @@ impl State {
         let main_address = self.addresses.main_address.unwrap_or(Address::new(0));
 
         // room id sigscan
+        asr::print_message("Starting the room id signature scan...");
         let mut room_id_address: Option<Address> = None;
         for range in process.memory_ranges().rev() {
             let address = range.address().unwrap().value();
@@ -129,6 +130,7 @@ impl State {
 
         let process = self.main_process.as_ref().ok_or("Could not get process from state struct.")?;
         
+        asr::print_message("Starting the name array signature scan...");
         let mut pointer_to_rooms_array: Option<Address> = None;
         // get pointer scan add -> read u32 5 bytes after the result to find offset -> result is add scanned + 9 + offset
         for range in process.memory_ranges().rev() {
@@ -164,14 +166,25 @@ impl State {
 
         let process = self.main_process.as_ref().ok_or("Could not get process from state struct.")?;
 
+        asr::print_message("Starting the speedrun timer signature scan...");
+
+        // unwrap settings
+        let Some(settings) = &self.settings else { return Err("Could not unwrap settings in spedrun timer scan function") };
+
         let mut igt_address: Option<Address> = None;
-        for range in process.memory_ranges().rev() {
-            let address = range.address().unwrap().value();
-            let size = range.size().unwrap_or_default();
-            if let Some(address) = SPEEDRUN_IGT.scan_process_range(process, (address, size)) {
-                igt_address = Some(address);
-                break;
+        if settings.find_mod_igt {
+            for range in process.memory_ranges().rev() {
+                let address = range.address().unwrap().value();
+                let size = range.size().unwrap_or_default();
+                if let Some(address) = SPEEDRUN_IGT.scan_process_range(process, (address, size)) {
+                    igt_address = Some(address);
+                    break;
+                }
             }
+        } else {
+            let error_message = "Speedrun IGT scan disabled in the settings. Using hardcoded path for the default IGT...";
+            asr::print_message(error_message);
+            return Err(error_message)
         }
 
         // this is a direct reference to the speedrun data, finding the scanned address is enough
