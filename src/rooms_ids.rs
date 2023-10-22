@@ -99,6 +99,38 @@ pub fn get_starting_room<'a>(level: &Level) -> &'a str {
 
 }
 
+pub fn full_game_split_unlock_rooms(current_room: &str) -> bool {
+
+    return [
+        "tower_tutorial10",
+        "entrance_10",
+        "medieval_10",
+        "ruin_11",
+        "dungeon_10",
+        "badland_9",
+        "graveyard_6",
+        "farm_11",
+        "saloon_6",
+        "plage_cavern2",
+        "forest_john",
+        "space_9",
+        "minigolf_8",
+        "street_john",
+        "sewer_8",
+        "industrial_5",
+        "freezer_escape1",
+        "chateau_9",
+        "kidsparty_john",
+        "war_1",
+        "boss_pepperman",
+        "boss_vigilante",
+        "boss_noise",
+        "boss_fakepepkey",
+        "boss_pizzafacefinale",
+    ].contains(&current_room)
+
+}
+
 /**
  * Return true if it receives a room that should trigger a split, usually where the levels end
  */
@@ -111,8 +143,6 @@ pub fn full_game_split_rooms(exited_level: &str) -> bool {
         "ruin_1",
         "dungeon_1" ,
         "badland_1",
-        "badland_1",
-        "rank_room",
         "graveyard_1",
         "farm_2",
         "saloon_1",
