@@ -14,7 +14,7 @@ use spinning_top::{const_spinlock, Spinlock};
 
 const MAIN_MODULE: &str = "PizzaTower.exe";
 const IDLE_TICK_RATE: f64 = 10.0;
-const RUNNING_TICK_RATE: f64 = 60.0;
+const RUNNING_TICK_RATE: f64 = 120.0;
 
 
 #[derive(Default)]
@@ -22,22 +22,19 @@ struct MemoryAddresses {
     main_address: Option<asr::Address>,
     room_id: Option<asr::Address>,
     room_id_names_pointer_array: Option<asr::Address>,
-    speedrun_igt_start: Option<asr::Address>,
+    buffer_helper: Option<asr::Address>,
 }
 
 #[derive(Default)]
 struct MemoryValues {
     room_id: Pair<i32>, // room id int in static memory
     room_name: Pair<String>,
-    main_timer_minutes: Pair<f64>,
-    main_timer_seconds: Pair<f64>,
-    il_timer_minutes: Pair<f64>,
-    il_timer_seconds: Pair<f64>,
-    speedrun_main_frames: Pair<f64>,
-    speedrun_il_frames: Pair<f64>,
-    pause_menu_open: Pair<f64>,
-    panic: Pair<f64>,
-    fps: Pair<i32>,
+    file_minutes: Pair<f64>,
+    file_seconds: Pair<f64>,
+    level_minutes: Pair<f64>,
+    level_seconds: Pair<f64>,
+    end_of_level: Pair<bool>,
+    version: Pair<String>,
 }
 
 struct State {
@@ -56,24 +53,13 @@ struct State {
 impl State {
 
     fn get_igt(&self, settings: &Settings) -> f64 {
-        match self.addresses.speedrun_igt_start {
-            // found speedrun igt
-            Some(_) => {
-                if settings.full_game {
-                    self.values.speedrun_main_frames.current / 60.0
-                } else {
-                    self.values.speedrun_il_frames.current / 60.0
-                }
-            },
-            // not found speedrun igt, use hardcoded path
-            None => {
-                if settings.full_game {
-                    self.values.main_timer_minutes.current * 60.0 + self.values.main_timer_seconds.current
-                } else {
-                    self.values.il_timer_minutes.current * 60.0 + self.values.il_timer_seconds.current
-                }
-            },
+
+        if settings.full_game {
+            self.values.file_minutes.current * 60.0 + self.values.file_seconds.current
+        } else {
+            self.values.level_minutes.current * 60.0 + self.values.level_seconds.current
         }
+
     }
 
     fn startup(&mut self) {
@@ -129,7 +115,7 @@ impl State {
         };
 
         // find the speedrun IGT or use the hardcoded path
-        self.addresses.speedrun_igt_start = match self.speedrun_timer_sigscan_init() {
+        self.addresses.buffer_helper = match self.buffer_helper_sigscan_init() {
             Ok(address) => Some(address),
             Err(_) => None,
         };
@@ -181,8 +167,8 @@ impl State {
         let Some(settings) = &self.settings else { return };
 
         // reset using IL timer
-        if self.values.il_timer_seconds.decreased()
-            && self.values.il_timer_minutes.current == 0.0
+        if self.values.level_seconds.decreased()
+            && self.values.level_minutes.current == 0.0
             && !settings.full_game
             && asr::timer::state() == asr::timer::TimerState::Running
         {
@@ -193,8 +179,8 @@ impl State {
         // start when entering first room of the level
         if self.values.room_name.current == rooms_ids::get_starting_room(&self.current_level)
             && !settings.full_game
-            && self.values.il_timer_minutes.current == 0.0
-            && self.values.il_timer_seconds.current < 0.2
+            && self.values.level_minutes.current == 0.0
+            && self.values.level_seconds.current < 0.2
             && asr::timer::state() != asr::timer::TimerState::Running
         {
             self.prev_room_split = String::new();
@@ -217,8 +203,8 @@ impl State {
 
                 // they can be "disabled" for when the player enters a level then leaves immediately, they have to go through certain room first for them to unlock
                 if self.full_game_split_enabled {
-                    // split when in crumbling pizza last room and enter rank screen (~0.3 late rta)
-                    if self.values.room_name.old == "tower_entrancehall" && self.values.room_name.current == "rank_room" {
+                    // split when in crumbling pizza last room and enter the exit door
+                    if self.values.room_name.old == "tower_entrancehall" && self.values.end_of_level.current {
                         asr::timer::split();
                     }
 
@@ -232,14 +218,14 @@ impl State {
                         asr::timer::split();
                     }
                 }
-            }
 
-            // enable/disable full game splits depending on current room or level
-            if rooms_ids::full_game_split_unlock_rooms(&self.values.room_name.current) {
-                self.full_game_split_enabled = true;
-            }
-            else if self.current_level == rooms_ids::Level::Hub {
-                self.full_game_split_enabled = false;
+                // enable/disable full game splits depending on current room or level
+                if rooms_ids::full_game_split_unlock_rooms(&self.values.room_name.current) {
+                    self.full_game_split_enabled = true;
+                }
+                else if self.current_level == rooms_ids::Level::Hub {
+                    self.full_game_split_enabled = false;
+                }
             }
 
             // IL actions
@@ -248,14 +234,14 @@ impl State {
                 // split for new rooms, doesn't split if you enter a secret or the last room split triggered <3s ago 
                 if (self.values.room_name.current != self.prev_room_split 
                     && self.values.room_name.old != self.prev_room_split
-                    || self.split_igt + 3.0 < (self.values.main_timer_seconds.current + self.values.main_timer_minutes.current * 60.0))
+                    || self.split_igt + 3.0 < (self.values.file_seconds.current + self.values.file_minutes.current * 60.0))
                     && !self.values.room_name.current.contains("secret")
                     && !self.values.room_name.old.contains("secret")
-                    && self.values.il_timer_seconds.current + self.values.il_timer_minutes.current * 60.0 > 1.0
+                    && self.values.level_seconds.current + self.values.level_minutes.current * 60.0 > 1.0
                 {
                     asr::timer::split();
                     self.prev_room_split = self.values.room_name.old.clone();
-                    self.split_igt = self.values.main_timer_seconds.current + self.values.main_timer_minutes.current * 60.0;
+                    self.split_igt = self.values.file_seconds.current + self.values.file_minutes.current * 60.0;
                     asr::timer::set_variable("last split", &self.prev_room_split);
                 }
                 // secret splits
@@ -287,8 +273,8 @@ impl State {
         asr::timer::set_variable("Current Level Enum", &format!("{:?}", self.current_level));
 
         // end of level split
-        if self.values.panic.current == 0.0 && self.values.panic.old == 1.0 && !settings.full_game 
-            && self.values.il_timer_seconds.current + self.values.il_timer_minutes.current * 60.0 > 1.0 {
+        if self.values.end_of_level.current && self.values.end_of_level.old && !settings.full_game 
+            && self.values.level_seconds.current + self.values.level_minutes.current * 60.0 > 1.0 {
             asr::timer::split();
         }
 

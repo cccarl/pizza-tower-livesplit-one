@@ -4,7 +4,7 @@ pub struct Settings {
     /// Full Game Mode
     pub full_game: bool,
 
-    #[default = false]
+    #[default = true]
     /// Save the IGT to LiveSplit's "Game Time"
     pub save_igt: bool,
 
@@ -20,7 +20,7 @@ pub struct Settings {
     /// Split on secrets
     pub splits_secrets: bool,
 
-    #[default = false]
-    /// Attempt to find the modded IGT instead of the default IGT
-    pub find_mod_igt: bool,
+    #[default = true]
+    /// Attempt to find the LiveSplit helper (enabled by using -livesplit)
+    pub find_buffer_helper: bool,
 }

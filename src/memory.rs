@@ -7,36 +7,22 @@ const IL_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0xC0];
 const MAIN_TIMER_SECONDS: [u64; 4] = [0x691898, 0x30, 0x880, 0xD0];
 const MAIN_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0xE0];
 
-const PAUSE_MENU_OPEN: [u64; 4] = [0x691898, 0x30, 0x2E0, 0x880];
-const PANIC: [u64; 4] = [0x691898, 0x30, 0x8C0, 0x6E0];
-
 // for practice mod 1.4+
 
 /* const IL_TIMER_SECONDS: [u64; 4] = [0x691898, 0x30, 0x880, 0x100];
 const IL_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0x110];
 const MAIN_TIMER_SECONDS: [u64; 4] = [0x691898, 0x30, 0x880, 0x120];
-const MAIN_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0x130]; */
-
-// kinda useless
-const FPS: u64 = 0x8A45BC;
+const MAIN_TIMER_MINUTES: [u64; 4] = [0x691898, 0x30, 0x880, 0x130]; 
+*/
 
 // the array with all the room names
 const ROOM_ID_ARRAY_SIG: Signature<13> = Signature::new("74 0C 48 8B 05 ?? ?? ?? ?? 48 8B 04 D0");
 // the id of the current room the player is on (i32)
 const ROOM_ID_SIG: Signature<9> = Signature::new("89 3D ?? ?? ?? ?? 48 3B 1D");
 
-// the signature for the mod to get the speedrun IGTs
-const SPEEDRUN_IGT: Signature<56> = Signature::new(
-    concat!(
-        "00 00 00 00 00 2E B6 40", // 5678
-        "?? ?? ?? ?? ?? ?? ?? ??",
-        "?? ?? ?? ?? ?? ?? ?? ??", // level igt
-        "?? ?? ?? ?? ?? ?? ?? ??",
-        "?? ?? ?? ?? ?? ?? ?? ??", // file igt
-        "?? ?? ?? ?? ?? ?? ?? ??",
-        "00 00 00 00 00 48 93 40"  // 1234
-    )
-);
+// the magic numbers to find for the buffer
+// the full 32 numbers didn't work for some reason... 16 is unique enough anyway
+const BUFFER_MAGIC_NUMBER: Signature<16> = Signature::new("C2 5A 17 65 BE 4D DF D6 F2 1C D1 3B A7 A6 1F C3");
 
 
 /**
@@ -134,7 +120,7 @@ impl State {
         let mut pointer_to_rooms_array: Option<Address> = None;
         // get pointer scan add -> read u32 5 bytes after the result to find offset -> result is add scanned + 9 + offset
         for range in process.memory_ranges().rev() {
-            let address = range.address().unwrap().value();
+            let address = range.address().unwrap_or_default().value();
             let size = range.size().unwrap_or_default();
 
             if let Some(add) = ROOM_ID_ARRAY_SIG.scan_process_range(process, (address, size)) {
@@ -162,7 +148,7 @@ impl State {
 
     }
 
-    pub fn speedrun_timer_sigscan_init(&self) -> Result<asr::Address, &str> {
+    pub fn buffer_helper_sigscan_init(&self) -> Result<asr::Address, &str> {
 
         let process = self.main_process.as_ref().ok_or("Could not get process from state struct.")?;
 
@@ -171,13 +157,15 @@ impl State {
         // unwrap settings
         let Some(settings) = &self.settings else { return Err("Could not unwrap settings in spedrun timer scan function") };
 
-        let mut igt_address: Option<Address> = None;
-        if settings.find_mod_igt {
+        let mut helper_address: Option<Address> = None;
+        if settings.find_buffer_helper {
             for range in process.memory_ranges().rev() {
-                let address = range.address().unwrap().value();
+                let address = range.address().unwrap_or_default().value();
                 let size = range.size().unwrap_or_default();
-                if let Some(address) = SPEEDRUN_IGT.scan_process_range(process, (address, size)) {
-                    igt_address = Some(address);
+                asr::print_message(&format!("{address:#X}"));
+                if let Some(address) = BUFFER_MAGIC_NUMBER.scan_process_range(process, (address, size)) {
+                    asr::print_message(&format!("Found this bitch"));
+                    helper_address = Some(address);
                     break;
                 }
             }
@@ -188,9 +176,9 @@ impl State {
         }
 
         // this is a direct reference to the speedrun data, finding the scanned address is enough
-        if let Some(add) = igt_address {
-            asr::timer::set_variable("IGT address", &format!("{:X}", igt_address.unwrap_or(Address::new(0)).value()));
-            asr::print_message("IGT sigscan complete");
+        if let Some(add) = helper_address {
+            asr::timer::set_variable("Buffer address", &format!("{:X}", helper_address.unwrap_or(Address::new(0)).value()));
+            asr::print_message("Buffer sigscan complete");
             Ok(add)
         } else {
             let error_message = "Could not complete the IGT sigscan, using hardcoded path...";
@@ -221,46 +209,45 @@ impl State {
         };
 
 
-        // only update if speedrun/frame igt address was found
-        if let Some(_) = self.addresses.speedrun_igt_start {
+        // only update if buffer helper was found
+        if let Some(_) = self.addresses.buffer_helper {
 
-            let il_address = self.addresses.speedrun_igt_start.unwrap_or(Address::new(0)).value() + 0x10;
-            let full_game_addres = self.addresses.speedrun_igt_start.unwrap_or(Address::new(0)).value() + 0x20;
-            let level_seconds_add = self.addresses.speedrun_igt_start.unwrap_or(Address::new(0)).value() + 0x40;
-            let level_minutes_add = self.addresses.speedrun_igt_start.unwrap_or(Address::new(0)).value() + 0x50;
-            let game_seconds_add = self.addresses.speedrun_igt_start.unwrap_or(Address::new(0)).value() + 0x60;
-            let game_minutes_add = self.addresses.speedrun_igt_start.unwrap_or(Address::new(0)).value() + 0x70;
-
-            if let Ok(value) = process.read::<f64>(Address::new(il_address)) {
-                update_pair("Speedrun IGT IL Frames", value, &mut self.values.speedrun_il_frames);
+            if self.values.version.current == "" {
+                read_string_and_update_pair(process, self.addresses.main_address.unwrap_or(Address::default()), &[self.addresses.buffer_helper.unwrap_or(Address::default()).value() + 0x40], "Version", &mut self.values.version);
             }
 
-            if let Ok(value) = process.read::<f64>(Address::new(full_game_addres)) {
-                update_pair("Speedrun IGT Full Frames", value, &mut self.values.speedrun_main_frames);
-            }
+            let file_minutes_add = self.addresses.buffer_helper.unwrap_or(Address::new(0)).value() + 0x80;
+            let file_seconds_add = self.addresses.buffer_helper.unwrap_or(Address::new(0)).value() + 0x88;
+            let level_minutes_add = self.addresses.buffer_helper.unwrap_or(Address::new(0)).value() + 0x90;
+            let level_seconds_add = self.addresses.buffer_helper.unwrap_or(Address::new(0)).value() + 0x98;
+            let end_level_fade_add = self.addresses.buffer_helper.unwrap_or(Address::new(0)).value() + 0xE0;
 
-            if let Ok(value) = process.read::<f64>(Address::new(game_seconds_add)) {
+            if let Ok(value) = process.read::<f64>(Address::new(file_seconds_add)) {
                 update_pair(
-                    "Main IGT Seconds",
+                    "File Seconds",
                     value,
-                    &mut self.values.main_timer_seconds,
+                    &mut self.values.file_seconds,
                 );
             };
 
-            if let Ok(value) = process.read::<f64>(Address::new(game_minutes_add)) {
+            if let Ok(value) = process.read::<f64>(Address::new(file_minutes_add)) {
                 update_pair(
-                    "Main IGT Minutes",
+                    "File Minutes",
                     value,
-                    &mut self.values.main_timer_minutes,
+                    &mut self.values.file_minutes,
                 );
             };
 
             if let Ok(value) = process.read::<f64>(Address::new(level_seconds_add)) {
-                update_pair("IL IGT Seconds", value, &mut self.values.il_timer_seconds);
+                update_pair("Level Seconds", value, &mut self.values.level_seconds);
             };
 
             if let Ok(value) = process.read::<f64>(Address::new(level_minutes_add)) {
-                update_pair("IL IGT Minutes", value, &mut self.values.il_timer_minutes);
+                update_pair("Level Minutes", value, &mut self.values.level_minutes);
+            };
+
+            if let Ok(value) = process.read::<bool>(Address::new(end_level_fade_add)) {
+                update_pair("End Fade Exists", value, &mut self.values.end_of_level);
             };
 
         } else {
@@ -271,7 +258,7 @@ impl State {
                 update_pair(
                     "Main IGT Seconds",
                     value,
-                    &mut self.values.main_timer_seconds,
+                    &mut self.values.file_seconds,
                 );
             };
 
@@ -280,35 +267,21 @@ impl State {
                 update_pair(
                     "Main IGT Minutes",
                     value,
-                    &mut self.values.main_timer_minutes,
+                    &mut self.values.file_minutes,
                 );
             };
 
             if let Ok(value) = process.read_pointer_path64::<f64>(main_address, &IL_TIMER_SECONDS)
             {
-                update_pair("IL IGT Seconds", value, &mut self.values.il_timer_seconds);
+                update_pair("IL IGT Seconds", value, &mut self.values.level_seconds);
             };
 
             if let Ok(value) = process.read_pointer_path64::<f64>(main_address, &IL_TIMER_MINUTES)
             {
-                update_pair("IL IGT Minutes", value, &mut self.values.il_timer_minutes);
+                update_pair("IL IGT Minutes", value, &mut self.values.level_minutes);
             };
 
         }
-
-
-        if let Ok(value) = process.read_pointer_path64::<f64>(main_address, &PAUSE_MENU_OPEN)
-        {
-            update_pair("Paused", value, &mut self.values.pause_menu_open);
-        };
-
-        if let Ok(value) = process.read_pointer_path64::<f64>(main_address, &PANIC) {
-            update_pair("Panic", value, &mut self.values.panic);
-        };
-
-        if let Ok(value) = process.read_pointer_path64::<i32>(main_address, &[FPS]) {
-            update_pair("FPS", value, &mut self.values.fps);
-        };
 
         // with the current room as an offset, find its name in the array
         let curr_room_name_add = process.read::<u64>(Address::new(self.addresses.room_id_names_pointer_array.unwrap_or(Address::new(0)).value() + self.values.room_id.current as u64 * 0x8));

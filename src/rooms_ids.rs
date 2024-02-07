@@ -99,6 +99,10 @@ pub fn get_starting_room<'a>(level: &Level) -> &'a str {
 
 }
 
+
+/**
+ * Returns true if a key room that should enable the split for the current level (in full game) is received
+ */
 pub fn full_game_split_unlock_rooms(current_room: &str) -> bool {
 
     return [
