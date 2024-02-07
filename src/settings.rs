@@ -1,16 +1,30 @@
-#[derive(asr::Settings)]
+use asr::settings::Gui;
+use asr::settings::gui::Title;
+
+#[derive(Gui)]
+enum TimerMode {
+    /// Full Game
+    #[default]
+    FullGame,
+    /// Individual Level
+    IL,
+    /// New Game+
+    NewGamePlus,
+    /// Individual World
+    IW,
+}
+
+#[derive(Gui)]
 pub struct Settings {
-    #[default = false]
-    /// Full Game Mode
-    pub full_game: bool,
 
-    #[default = true]
-    /// Save the IGT to LiveSplit's "Game Time"
-    pub save_igt: bool,
+    /// LiveSplit Timer Mode
+    _igt_mode: Title,
 
-    #[default = false]
-    /// Start on level exit
-    pub start_on_exit: bool,
+    /// Pick a Mode
+    timer_mode: TimerMode,
+
+    /// Individual Mode Settings
+    _misc: Title,
 
     #[default = true]
     /// Split on new rooms
@@ -20,7 +34,6 @@ pub struct Settings {
     /// Split on secrets
     pub splits_secrets: bool,
 
-    #[default = true]
-    /// Attempt to find the LiveSplit helper (enabled by using -livesplit)
-    pub find_buffer_helper: bool,
+    /// Reminder: Use "-livesplit" in the launch options to use game time.
+    _message: Title,
 }

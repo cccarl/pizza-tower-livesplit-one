@@ -1,306 +1,91 @@
-#![no_std]
-mod memory;
-mod rooms_ids;
-mod settings;
-
-#[macro_use]
 extern crate alloc;
-use alloc::string::String;
-use asr::{watcher::Pair, Process, timer::TimerState};
-use once_cell::sync::Lazy;
-use rooms_ids::Level;
-use settings::Settings;
-use spinning_top::{const_spinlock, Spinlock};
 
-const MAIN_MODULE: &str = "PizzaTower.exe";
-const IDLE_TICK_RATE: f64 = 10.0;
-const RUNNING_TICK_RATE: f64 = 120.0;
+use asr::{future::{next_tick, IntoOption}, print_message, settings::Gui, Process};
+asr::async_main!(stable);
 
+mod memory;
+mod settings;
+//mod rooms_ids;
 
-#[derive(Default)]
+#[derive(Default, Copy, Clone)]
 struct MemoryAddresses {
     main_address: Option<asr::Address>,
     room_id: Option<asr::Address>,
-    room_id_names_pointer_array: Option<asr::Address>,
+    room_names: Option<asr::Address>,
     buffer_helper: Option<asr::Address>,
 }
 
 #[derive(Default)]
 struct MemoryValues {
-    room_id: Pair<i32>, // room id int in static memory
-    room_name: Pair<String>,
-    file_minutes: Pair<f64>,
-    file_seconds: Pair<f64>,
-    level_minutes: Pair<f64>,
-    level_seconds: Pair<f64>,
-    end_of_level: Pair<bool>,
-    version: Pair<String>,
+    room_id: Option<i32>,
 }
 
-struct State {
-    full_game_split_enabled: bool,
-    started_up: bool,
-    main_process: Option<Process>,
-    settings: Option<settings::Settings>,
-    values: Lazy<MemoryValues>,
-    addresses: Lazy<MemoryAddresses>,
-    current_level: Level,
-    prev_room_split: String,
-    split_igt: f64,
-    start_time: f64,
-}
+const MAIN_MODULE: &str = "PizzaTower.exe";
 
-impl State {
 
-    fn get_igt(&self, settings: &Settings) -> f64 {
+async fn main() {
 
-        if settings.full_game {
-            self.values.file_minutes.current * 60.0 + self.values.file_seconds.current
-        } else {
-            self.values.level_minutes.current * 60.0 + self.values.level_seconds.current
-        }
+    // startup
+    let mut settings = settings::Settings::register();
 
-    }
+    loop {
+        let process = Process::wait_attach(MAIN_MODULE).await;
 
-    fn startup(&mut self) {
-        self.settings = Some(settings::Settings::register());
-        asr::set_tick_rate(IDLE_TICK_RATE);
-        self.started_up = true;
-    }
+        let mut mem_addresses = MemoryAddresses::default();
 
-    fn init(&mut self) -> Result<(), &str> {
+        let mut mem_values = MemoryValues::default();
 
-        asr::print_message("----Game Found----");
-        self.addresses.main_address = match &self.main_process {
-            Some(info) => match info.get_module_address(MAIN_MODULE) {
-                Ok(address) => Some(address),
-                Err(_) => {
-                    return Err("Could not get main module address when refreshing memory values.")
-                }
+        match process.get_module_address(MAIN_MODULE) {
+            Ok(address) => mem_addresses.main_address = Some(address),
+            Err(_) => {
+                print_message("Could not get address of main module from process, aborting.");
+                return
             },
-            None => return Err("Process info is not initialized."),
-        };
+        }
 
-        // find room ID in memory
-        self.addresses.room_id = match self.room_id_sigscan_start() {
-            Ok(address) => Some(address),
-            Err(_) => None,
-        };
+        print_message("Connected to Pizza Tower the pizzapasta game");
 
-        // stall until a room is read, that way we know the main game has loaded
-        if let Some(process) = self.main_process.as_ref() {
+        process.until_closes(async {
 
-            let igt_room_id_address = self.addresses.main_address.unwrap_or(asr::Address::new(0)).value() + self.addresses.room_id.unwrap_or(asr::Address::new(0)).value();
-            if igt_room_id_address == 0 {
-                return Err("Nonsense address calculated (0) when stalling for the loading times, aborting init...");
+            // init
+            print_message("This only runs once.");
+
+            if let Ok(address) = memory::room_id_sigscan_start(&process, mem_addresses) {
+                mem_addresses.room_id = Some(address);
+            } else {
+                mem_addresses.room_id = None;
             }
 
-            asr::print_message("Waiting for the game to open...");
+            
+            if mem_addresses.room_id.is_some() {
+                mem_values.room_id = process.read(mem_addresses.main_address.unwrap_or(asr::Address::default()).value() + mem_addresses.room_id.unwrap().value()).into_option();
+                while mem_values.room_id.as_ref().unwrap_or(&-1) == &0 {
+                    print_message("waiting for game to start");
+                    if mem_values.room_id.as_ref().unwrap_or(&-1) == &0 {
+                        if let Ok(value) = process.read::<i32>(mem_addresses.main_address.unwrap_or(asr::Address::default()).value() + mem_addresses.room_id.unwrap().value()) {
+                            mem_values.room_id = Some(value);
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            print_message(&format!("Current room:{}", mem_values.room_id.unwrap_or(-1)));
+
+            mem_addresses.room_names = memory::room_name_array_sigscan_start(&process).into_option();
+            mem_addresses.buffer_helper = memory::buffer_helper_sigscan_init(&process).into_option();
+
+
+            // TODO: if any of the mem values gave an error, don't enter loop
             loop {
-                if let Ok(room_id) = process.read::<i32>(asr::Address::new(igt_room_id_address)) {
-                    if room_id != 0 {
-                        break;
-                    }
-                }
+                settings.update();
+
+                
+
+                next_tick().await;
             }
-        } else {
-            asr::print_message("Could not load process after finding the room ID address");
-            return Err("Could not load process");
-        };
-
-        // find room names array in memory
-        self.addresses.room_id_names_pointer_array = match self.room_name_array_sigscan_start() {
-            Ok(address) => Some(address),
-            Err(_) => None,
-        };
-
-        // find the speedrun IGT or use the hardcoded path
-        self.addresses.buffer_helper = match self.buffer_helper_sigscan_init() {
-            Ok(address) => Some(address),
-            Err(_) => None,
-        };
-        
-
-
-        asr::set_tick_rate(RUNNING_TICK_RATE);
-        Ok(())
+        }).await;
     }
 
-    fn update(&mut self) {
-        if !self.started_up {
-            self.startup();
-        }
-
-        match &self.main_process {
-            None => {
-                self.main_process = Process::attach(MAIN_MODULE);
-                if self.main_process.is_none() {
-                    return;
-                }
-                let init_result = self.init();
-                if init_result.is_err() {
-                    asr::print_message(init_result.unwrap_err());
-                    return;
-                }
-                // early return to never work with a None process
-                return;
-            }
-            Some(process) => {
-                // if game is closed detatch and look for it again
-                if !process.is_open() {
-                    asr::set_tick_rate(IDLE_TICK_RATE);
-                    self.main_process = None;
-                    self.addresses = Default::default();
-                    return;
-                }
-            }
-        }
-
-        if self.refresh_mem_values().is_err() {
-            asr::print_message("Failed to update memory values, retrying process attachment...");
-            self.main_process = None;
-            self.addresses = Default::default();
-            return;
-        }
-
-        // unwrap settings
-        let Some(settings) = &self.settings else { return };
-
-        // reset using IL timer
-        if self.values.level_seconds.decreased()
-            && self.values.level_minutes.current == 0.0
-            && !settings.full_game
-            && asr::timer::state() == asr::timer::TimerState::Running
-        {
-            self.start_time = 0.0;
-            asr::timer::reset();
-        }
-
-        // start when entering first room of the level
-        if self.values.room_name.current == rooms_ids::get_starting_room(&self.current_level)
-            && !settings.full_game
-            && self.values.level_minutes.current == 0.0
-            && self.values.level_seconds.current < 0.2
-            && asr::timer::state() != asr::timer::TimerState::Running
-        {
-            self.prev_room_split = String::new();
-            self.start_time = 0.0;
-            asr::timer::reset();
-            asr::timer::start();
-        }
-
-        // room change actions
-        if self.values.room_name.changed() {
-            if let Some(level) = rooms_ids::get_current_level(&self.values.room_name.current){
-                self.current_level = level;
-            };
-
-            if settings.full_game {
-                // start the timer in full game runs
-                if rooms_ids::entered_hub_start(&self.values.room_name.current, &self.values.room_name.old) {
-                    asr::timer::start();
-                }
-
-                // they can be "disabled" for when the player enters a level then leaves immediately, they have to go through certain room first for them to unlock
-                if self.full_game_split_enabled {
-                    // split when in crumbling pizza last room and enter the exit door
-                    if self.values.room_name.old == "tower_entrancehall" && self.values.end_of_level.current {
-                        asr::timer::split();
-                    }
-
-                    // split on any level exit from their first room
-                    if self.current_level == Level::Hub && rooms_ids::full_game_split_rooms(&self.values.room_name.old) {
-                        asr::timer::split();
-                    }
-
-                    // pizza face defeated split
-                    if self.values.room_name.current == "boss_pizzafacehub" && self.values.room_name.old == "boss_pizzafacefinale" {
-                        asr::timer::split();
-                    }
-                }
-
-                // enable/disable full game splits depending on current room or level
-                if rooms_ids::full_game_split_unlock_rooms(&self.values.room_name.current) {
-                    self.full_game_split_enabled = true;
-                }
-                else if self.current_level == rooms_ids::Level::Hub {
-                    self.full_game_split_enabled = false;
-                }
-            }
-
-            // IL actions
-            else if !settings.full_game {
-
-                // split for new rooms, doesn't split if you enter a secret or the last room split triggered <3s ago 
-                if (self.values.room_name.current != self.prev_room_split 
-                    && self.values.room_name.old != self.prev_room_split
-                    || self.split_igt + 3.0 < (self.values.file_seconds.current + self.values.file_minutes.current * 60.0))
-                    && !self.values.room_name.current.contains("secret")
-                    && !self.values.room_name.old.contains("secret")
-                    && self.values.level_seconds.current + self.values.level_minutes.current * 60.0 > 1.0
-                {
-                    asr::timer::split();
-                    self.prev_room_split = self.values.room_name.old.clone();
-                    self.split_igt = self.values.file_seconds.current + self.values.file_minutes.current * 60.0;
-                    asr::timer::set_variable("last split", &self.prev_room_split);
-                }
-                // secret splits
-                else if (self.values.room_name.current.contains("secret")
-                    || self.values.room_name.old.contains("secret"))
-                    && settings.splits_secrets
-                    && rooms_ids::get_starting_room(&self.current_level) != self.values.room_name.current // avoid splits when restarting inside secret
-                {
-                    asr::timer::split();
-                }
-            }
-
-            // reset in main menu
-            if self.values.room_name.current == "Mainmenu"
-                && asr::timer::state() == asr::timer::TimerState::Running
-            {
-                self.split_igt = 0.0;
-                self.start_time = 0.0;
-                asr::timer::reset();
-            }
-
-            // start on level exit
-            if settings.start_on_exit && rooms_ids::full_game_split_rooms(&self.values.room_name.old) && asr::timer::state() == TimerState::NotRunning {
-                self.start_time = self.get_igt(settings);
-                asr::timer::start();
-            }
-
-        }
-        asr::timer::set_variable("Current Level Enum", &format!("{:?}", self.current_level));
-
-        // end of level split
-        if self.values.end_of_level.current && self.values.end_of_level.old && !settings.full_game 
-            && self.values.level_seconds.current + self.values.level_minutes.current * 60.0 > 1.0 {
-            asr::timer::split();
-        }
-
-        // igt
-        if settings.save_igt {
-            let igt: f64 = self.get_igt(settings);
-            asr::timer::set_game_time(asr::time::Duration::seconds_f64(igt - self.start_time));
-            asr::timer::pause_game_time();
-        }
-    }
-}
-
-static LS_CONTROLLER: Spinlock<State> = const_spinlock(State {
-    full_game_split_enabled: false,
-    started_up: false,
-    main_process: None,
-    settings: None,
-    values: Lazy::new(Default::default),
-    addresses: Lazy::new(Default::default),
-    current_level: Level::Hub,
-    prev_room_split: String::new(),
-    split_igt: 0.0,
-    start_time: 0.0,
-});
-
-#[no_mangle]
-pub extern "C" fn update() {
-    LS_CONTROLLER.lock().update();
 }
