@@ -1,5 +1,5 @@
-use asr::settings::Gui;
 use asr::settings::gui::Title;
+use asr::settings::Gui;
 
 #[derive(Gui)]
 enum TimerMode {
@@ -16,7 +16,6 @@ enum TimerMode {
 
 #[derive(Gui)]
 pub struct Settings {
-
     /// LiveSplit Timer Mode
     _igt_mode: Title,
 
