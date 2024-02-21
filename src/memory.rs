@@ -190,6 +190,7 @@ pub fn refresh_mem_values<'a>(
     if let Some(_) = memory_addresses.buffer_helper {
         /*
         Buffer documentation:
+        0x00: magic numbers
         0x40: game version (string)
         0x80: file minutes (f64)
         0x88: file seconds (f64)

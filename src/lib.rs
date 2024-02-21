@@ -40,18 +40,30 @@ async fn main() {
     // startup
     let mut settings = settings::Settings::register();
 
+    let mut timer_mode_local = settings.timer_mode;
+
     loop {
-        let process = Process::wait_attach(MAIN_MODULE).await;
+        // check if settings GUI changes
+        settings.update();
+        if timer_mode_local != settings.timer_mode {
+            settings.load_default_settings_for_mode();
+            timer_mode_local = settings.timer_mode;
+        }
+
+        let process_option = Process::attach(MAIN_MODULE);
 
         let mut mem_addresses = MemoryAddresses::default();
-
         let mut mem_values = MemoryValues::default();
 
-        match process.get_module_address(MAIN_MODULE) {
-            Ok(address) => mem_addresses.main_address = Some(address),
-            Err(_) => {
-                print_message("Could not get address of main module from process, aborting.");
-                return;
+        let process;
+        match process_option {
+            Some(process_found) => {
+                process = process_found;
+                mem_addresses.main_address = process.get_module_address(MAIN_MODULE).into_option();
+            }
+            None => {
+                next_tick().await;
+                continue;
             }
         }
 
@@ -73,8 +85,10 @@ async fn main() {
                     mem_values.room_id.current = 0;
                     print_message(&format!("Could not read room ID before stall that waits for the game opening. Using {}.", mem_values.room_id.current));
                 }
-                while mem_values.room_id.current == 0 {
+                if mem_values.room_id.current == 0 {
                     print_message("waiting for game to start");
+                }
+                while mem_values.room_id.current == 0 {
                     if mem_values.room_id.current == 0 {
                         if let Ok(value) = process.read::<i32>(mem_addresses.main_address.unwrap_or(asr::Address::default()).value() + mem_addresses.room_id.unwrap().value()) {
                             mem_values.room_id.current = value;
@@ -90,13 +104,16 @@ async fn main() {
             mem_addresses.room_names = memory::room_name_array_sigscan_start(&process).into_option();
             mem_addresses.buffer_helper = memory::buffer_helper_sigscan_init(&process).into_option();
 
-            // TODO: if any of the mem values gave an error, don't enter loop
             loop {
+
                 settings.update();
+                if timer_mode_local != settings.timer_mode {
+                    settings.load_default_settings_for_mode();
+                    timer_mode_local = settings.timer_mode;
+                }
 
                 if let Err(text) = refresh_mem_values(&process, &mem_addresses, &mut mem_values) {
                     print_message(text);
-                    continue;
                 }
 
                 next_tick().await;
