@@ -1,4 +1,4 @@
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum Level {
     Hub,
     F1Tutorial,
@@ -22,6 +22,8 @@ pub enum Level {
     F5DMAS,
     F5War,
     F5CrumblingTower,
+    SecretsOfTheWorld,
+    TrickyTreat,
     Pepperman,
     Vigilante,
     Noise,
@@ -31,7 +33,13 @@ pub enum Level {
     Unkown,
 }
 
-pub fn get_current_level(room_name: &str) -> Level {
+pub fn get_current_level(room_name: &str, prev_level: Level) -> Level {
+
+    // special cases for rooms that overlap in multiple levels
+    // TODO: 
+    // ctop -> don't change in normal hub rooms
+    // SOTW: -> don't change if room has "secret" in it
+
     match room_name {
         "tower_finalhallway" => Level::F5CrumblingTower,
         x if x.contains("tower_tutorial") => Level::F1Tutorial,
@@ -56,6 +64,8 @@ pub fn get_current_level(room_name: &str) -> Level {
         x if x.contains("sewer_") => Level::F4OhShit,
         x if x.contains("freezer_") => Level::F4Refrigerator,
         x if x.contains("boss_fakepep") => Level::Fake,
+        x if x.contains("secret_entrance") => Level::SecretsOfTheWorld,
+        x if x.contains("trickytreat") => Level::TrickyTreat,
         x if x.contains("chateau_") => Level::F5Pizzascare,
         x if x.contains("kidsparty_") => Level::F5DMAS,
         x if x.contains("war_") => Level::F5War,
@@ -68,7 +78,6 @@ pub fn get_current_level(room_name: &str) -> Level {
 pub fn get_starting_room<'a>(level: &Level) -> &'a str {
 
     match level {
-        Level::Hub => "nonelol",
         Level::F1Tutorial => "tower_tutorial1",
         Level::F1JohnGutter => "entrance_1",
         Level::F1Pizzascape => "medieval_1",
@@ -90,13 +99,14 @@ pub fn get_starting_room<'a>(level: &Level) -> &'a str {
         Level::F5DMAS => "kidsparty_1",
         Level::F5War => "war_1",
         Level::F5CrumblingTower => "tower_finalhallway",
+        Level::SecretsOfTheWorld => "secret_entrance",
+        Level::TrickyTreat => "trickytreat_2",
         Level::Pepperman => "boss_pepperman",
         Level::Vigilante => "boss_vigilante",
         Level::Noise => "boss_noise",
         Level::Fake => "boss_fakepep",
         Level::PizzaFace => "boss_pizzaface",
-        Level::ResultsScreen => "nonelol",
-        Level::Unkown => "-",
+        _ => "-",
     }
 
 }
@@ -170,11 +180,4 @@ pub fn full_game_split_rooms(exited_level: &str) -> bool {
         "rank_room",
     ].contains(&exited_level)
     
-}
-
-/**
- * used to start the timer in full game
- */
-pub fn entered_hub_start(room_current: &str, room_old: &str) -> bool {
-    room_current == "tower_entrancehall" && room_old == "Finalintro"
 }

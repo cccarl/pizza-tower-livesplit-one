@@ -10,6 +10,7 @@ use asr::{
     Process,
 };
 use memory::refresh_mem_values;
+use rooms_ids::Level;
 use settings::TimerMode;
 asr::async_main!(stable);
 
@@ -107,7 +108,7 @@ async fn main() {
             mem_addresses.room_names = memory::room_name_array_sigscan_start(&process).into_option();
             mem_addresses.buffer_helper = memory::buffer_helper_sigscan_init(&process).into_option();
 
-            let mut current_level = rooms_ids::get_current_level(&mem_values.room_name.current);
+            let mut current_level = rooms_ids::Level::Unkown;
             let mut ng_plus_offset_seconds: Option<f64> = None;
             let mut iw_offset_seconds: Option<f64> = None;
 
@@ -123,7 +124,9 @@ async fn main() {
                     print_message(text);
                 }
 
-                current_level = rooms_ids::get_current_level(&mem_values.room_name.current);
+                if mem_values.room_id.changed() {
+                    current_level = rooms_ids::get_current_level(&mem_values.room_name.current, current_level);
+                }
 
                 // offsets for ng+ and iw
                 if timer::state() == TimerState::NotRunning {
@@ -145,15 +148,30 @@ async fn main() {
                 }
 
                 // game time set
-                let game_time_seconds;
-                match settings.timer_mode {
-                    TimerMode::FullGame => game_time_seconds = mem_values.file_minutes.current * 60.0 + mem_values.file_seconds.current,
-                    TimerMode::IL => game_time_seconds = mem_values.level_minutes.current * 60.0 + mem_values.level_seconds.current,
-                    TimerMode::NewGamePlus => game_time_seconds = mem_values.file_minutes.current * 60.0 + mem_values.file_seconds.current - ng_plus_offset_seconds.unwrap_or(0.0),
-                    TimerMode::IW => game_time_seconds = mem_values.file_minutes.current * 60.0 + mem_values.file_seconds.current - iw_offset_seconds.unwrap_or(0.0),
-                }
+                let game_time_seconds = match settings.timer_mode {
+                    TimerMode::FullGame => mem_values.file_minutes.current * 60.0 + mem_values.file_seconds.current,
+                    TimerMode::IL => mem_values.level_minutes.current * 60.0 + mem_values.level_seconds.current,
+                    TimerMode::NewGamePlus => mem_values.file_minutes.current * 60.0 + mem_values.file_seconds.current - ng_plus_offset_seconds.unwrap_or(0.0),
+                    TimerMode::IW => mem_values.file_minutes.current * 60.0 + mem_values.file_seconds.current - iw_offset_seconds.unwrap_or(0.0),
+                };
 
                 timer::set_game_time(Duration::seconds_f64(game_time_seconds));
+
+                // start
+                if settings.start_enable {
+                    if settings.start_new_file && mem_values.room_name.current == "tower_entrancehall" && settings.start_new_file && mem_values.room_name.old == "Finalintro" {
+                        timer::start();
+                    }
+                    if settings.start_any_file && mem_values.room_name.current == "tower_entrancehall" && mem_values.room_name.old != "tower_entrancehall" {
+                        timer::start();
+                    }
+                    if settings.start_new_il && rooms_ids::get_starting_room(&current_level) == mem_values.room_name.current && mem_values.level_minutes.current == 0.0 && mem_values.level_seconds.current < 0.5 {
+                        timer::start();
+                    }
+                    if settings.start_exit_level && mem_values.room_id.changed() && rooms_ids::full_game_split_rooms(&mem_values.room_name.old) && current_level == Level::Hub {
+                        timer::start();
+                    }
+                }
 
                 next_tick().await;
             }
