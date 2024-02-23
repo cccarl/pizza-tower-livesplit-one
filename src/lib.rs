@@ -4,15 +4,18 @@ use asr::{
     future::{next_tick, IntoOption},
     print_message,
     settings::Gui,
+    time::Duration,
+    timer::{self, TimerState},
     watcher::Pair,
     Process,
 };
 use memory::refresh_mem_values;
+use settings::TimerMode;
 asr::async_main!(stable);
 
 mod memory;
 mod settings;
-//mod rooms_ids;
+mod rooms_ids;
 
 #[derive(Default, Copy, Clone)]
 struct MemoryAddresses {
@@ -104,6 +107,10 @@ async fn main() {
             mem_addresses.room_names = memory::room_name_array_sigscan_start(&process).into_option();
             mem_addresses.buffer_helper = memory::buffer_helper_sigscan_init(&process).into_option();
 
+            let mut current_level = rooms_ids::get_current_level(&mem_values.room_name.current);
+            let mut ng_plus_offset_seconds: Option<f64> = None;
+            let mut iw_offset_seconds: Option<f64> = None;
+
             loop {
 
                 settings.update();
@@ -115,6 +122,38 @@ async fn main() {
                 if let Err(text) = refresh_mem_values(&process, &mem_addresses, &mut mem_values) {
                     print_message(text);
                 }
+
+                current_level = rooms_ids::get_current_level(&mem_values.room_name.current);
+
+                // offsets for ng+ and iw
+                if timer::state() == TimerState::NotRunning {
+                    // ng+ offset update
+                    if ng_plus_offset_seconds.is_none() && mem_values.room_name.current == "tower_entrancehall" && mem_values.level_minutes.current == 0.0 && mem_values.level_seconds.current < 1.0 {
+                        ng_plus_offset_seconds = Some(mem_values.file_minutes.current * 60.0 + mem_values.file_seconds.current);
+                    }
+                    if ng_plus_offset_seconds.is_some() && mem_values.room_name.current == "hub_loadingscreen" {
+                        ng_plus_offset_seconds = None;
+                    }
+
+                    // iw offset update
+                    if iw_offset_seconds.is_none() && current_level == rooms_ids::Level::Hub {
+                        iw_offset_seconds = Some(mem_values.file_minutes.current * 60.0 + mem_values.file_seconds.current);
+                    }
+                    if iw_offset_seconds.is_some() && current_level != rooms_ids::Level::Hub {
+                        iw_offset_seconds = None;
+                    }
+                }
+
+                // game time set
+                let game_time_seconds;
+                match settings.timer_mode {
+                    TimerMode::FullGame => game_time_seconds = mem_values.file_minutes.current * 60.0 + mem_values.file_seconds.current,
+                    TimerMode::IL => game_time_seconds = mem_values.level_minutes.current * 60.0 + mem_values.level_seconds.current,
+                    TimerMode::NewGamePlus => game_time_seconds = mem_values.file_minutes.current * 60.0 + mem_values.file_seconds.current - ng_plus_offset_seconds.unwrap_or(0.0),
+                    TimerMode::IW => game_time_seconds = mem_values.file_minutes.current * 60.0 + mem_values.file_seconds.current - iw_offset_seconds.unwrap_or(0.0),
+                }
+
+                timer::set_game_time(Duration::seconds_f64(game_time_seconds));
 
                 next_tick().await;
             }

@@ -28,39 +28,40 @@ pub enum Level {
     Fake,
     PizzaFace,
     ResultsScreen,
+    Unkown,
 }
 
-pub fn get_current_level(room_name: &str) -> Option<Level> {
+pub fn get_current_level(room_name: &str) -> Level {
     match room_name {
-        "tower_finalhallway" => Some(Level::F5CrumblingTower),
-        x if x.contains("tower_tutorial") => Some(Level::F1Tutorial),
-        x if x.contains("tower_") => Some(Level::Hub),
-        x if x.contains("entrance_") => Some(Level::F1JohnGutter),
-        x if x.contains("medieval_") => Some(Level::F1Pizzascape),
-        x if x.contains("ruin_") => Some(Level::F1AncientCheese),
-        x if x.contains("dungeon_") => Some(Level::F1BloodsauceDungeon),
-        "boss_pepperman" => Some(Level::Pepperman),
-        x if x.contains("badland_") => Some(Level::F2OreganoDesert),
-        x if x.contains("graveyard_") => Some(Level::F2Wasteyard),
-        x if x.contains("farm_") => Some(Level::F2FunFarm),
-        x if x.contains("saloon_") => Some(Level::F2FastfoodSaloon),
-        "boss_vigilante" => Some(Level::Vigilante),
-        x if x.contains("plage_") => Some(Level::F3CrustCove),
-        x if x.contains("forest_") => Some(Level::F3GnomeForest),
-        x if x.contains("space_") => Some(Level::F3DeepDish9),
-        x if x.contains("minigolf_") => Some(Level::F3Golf),
-        "boss_noise" => Some(Level::Noise),
-        x if x.contains("street_") => Some(Level::F4ThePigCity),
-        x if x.contains("industrial_") => Some(Level::F4PeppibotFactory),
-        x if x.contains("sewer_") => Some(Level::F4OhShit),
-        x if x.contains("freezer_") => Some(Level::F4Refrigerator),
-        x if x.contains("boss_fakepep") => Some(Level::Fake),
-        x if x.contains("chateau_") => Some(Level::F5Pizzascare),
-        x if x.contains("kidsparty_") => Some(Level::F5DMAS),
-        x if x.contains("war_") => Some(Level::F5War),
-        "boss_pizzaface" => Some(Level::PizzaFace),
-        "rank_room" => Some(Level::ResultsScreen),
-        _ => None, // where did you go?
+        "tower_finalhallway" => Level::F5CrumblingTower,
+        x if x.contains("tower_tutorial") => Level::F1Tutorial,
+        x if x.contains("tower_") => Level::Hub,
+        x if x.contains("entrance_") => Level::F1JohnGutter,
+        x if x.contains("medieval_") => Level::F1Pizzascape,
+        x if x.contains("ruin_") => Level::F1AncientCheese,
+        x if x.contains("dungeon_") => Level::F1BloodsauceDungeon,
+        "boss_pepperman" => Level::Pepperman,
+        x if x.contains("badland_") => Level::F2OreganoDesert,
+        x if x.contains("graveyard_") => Level::F2Wasteyard,
+        x if x.contains("farm_") => Level::F2FunFarm,
+        x if x.contains("saloon_") => Level::F2FastfoodSaloon,
+        "boss_vigilante" => Level::Vigilante,
+        x if x.contains("plage_") => Level::F3CrustCove,
+        x if x.contains("forest_") => Level::F3GnomeForest,
+        x if x.contains("space_") => Level::F3DeepDish9,
+        x if x.contains("minigolf_") => Level::F3Golf,
+        "boss_noise" => Level::Noise,
+        x if x.contains("street_") => Level::F4ThePigCity,
+        x if x.contains("industrial_") => Level::F4PeppibotFactory,
+        x if x.contains("sewer_") => Level::F4OhShit,
+        x if x.contains("freezer_") => Level::F4Refrigerator,
+        x if x.contains("boss_fakepep") => Level::Fake,
+        x if x.contains("chateau_") => Level::F5Pizzascare,
+        x if x.contains("kidsparty_") => Level::F5DMAS,
+        x if x.contains("war_") => Level::F5War,
+        "boss_pizzaface" => Level::PizzaFace,
+        "rank_room" => Level::ResultsScreen,
+        _ => Level::Unkown, // where did you go?
     }
 }
 
@@ -95,6 +96,7 @@ pub fn get_starting_room<'a>(level: &Level) -> &'a str {
         Level::Fake => "boss_fakepep",
         Level::PizzaFace => "boss_pizzaface",
         Level::ResultsScreen => "nonelol",
+        Level::Unkown => "-",
     }
 
 }
