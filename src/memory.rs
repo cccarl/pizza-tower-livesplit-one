@@ -1,5 +1,5 @@
 use crate::{MemoryAddresses, MemoryValues};
-use asr::{signature::Signature, watcher::Pair, Address, Process};
+use asr::{print_message, signature::Signature, watcher::Pair, Address, Process};
 
 // the array with all the room names
 const ROOM_ID_ARRAY_SIG: Signature<13> = Signature::new("74 0C 48 8B 05 ?? ?? ?? ?? 48 8B 04 D0");
@@ -196,8 +196,9 @@ pub fn refresh_mem_values<'a>(
         0x88: file seconds (f64)
         0x90: level minute (f64)
         0x98: level seconds (f64)
-        0xA0: current room (string) (unused, using the room names array instead)
-        0xE0: end of level fade exists (bool)
+        0xA0: current room (string)
+        0xE0: end of level fade exists (bool / u8)
+        0xE1: (my experiment for now) boss HP (u8)
         */
 
         // game version doesn't need to be updated more tha once...
@@ -237,11 +238,21 @@ pub fn refresh_mem_values<'a>(
             .unwrap_or(Address::new(0))
             .value()
             + 0x98;
+        let room_add = memory_addresses
+            .buffer_helper
+            .unwrap_or(Address::new(0))
+            .value()
+            + 0xA0;
         let end_level_fade_add = memory_addresses
             .buffer_helper
             .unwrap_or(Address::new(0))
             .value()
             + 0xE0;
+        let boss_hp_add = memory_addresses
+            .buffer_helper
+            .unwrap_or(Address::new(0))
+            .value()
+            + 0xE1;
 
         if let Ok(value) = process.read::<f64>(Address::new(file_seconds_add)) {
             update_pair("File Seconds", value, &mut memory_values.file_seconds);
@@ -259,13 +270,18 @@ pub fn refresh_mem_values<'a>(
             update_pair("Level Minutes", value, &mut memory_values.level_minutes);
         };
 
+        read_string_and_update_pair(process, Address::new(0), &[room_add], "Room Name (Buffer)", &mut memory_values.room_name);
+
         if let Ok(value) = process.read::<bool>(Address::new(end_level_fade_add)) {
             update_pair("End Fade Exists", value, &mut memory_values.end_of_level);
         };
-    }
 
-    // with the current room id value as an offset, find its name in the array
-    if memory_values.room_id.changed() || memory_values.room_name.current == String::default() {
+        if let Ok(value) = process.read::<u8>(Address::new(boss_hp_add)) {
+            update_pair("Boss HP", value, &mut memory_values.boss_hp);
+        };
+    } else {
+
+        // with the current room id value as an offset, find its name in the array
         let curr_room_name_add = process.read::<u64>(Address::new(
             memory_addresses
                 .room_names
@@ -279,7 +295,7 @@ pub fn refresh_mem_values<'a>(
                 &process,
                 Address::new(0),
                 &[add],
-                "Current Room",
+                "Room Name (GM Array)",
                 &mut memory_values.room_name,
             ),
             Err(_) => return Err("Could not read the room address, retrying signature scan..."),

@@ -36,12 +36,15 @@ struct MemoryValues {
     level_seconds: Pair<f64>,
     level_minutes: Pair<f64>,
     end_of_level: Pair<bool>,
+    boss_hp: Pair<u8>,
 }
 
 const MAIN_MODULE: &str = "PizzaTower.exe";
 
 async fn main() {
+    
     // startup
+    asr::set_tick_rate(240.0);
     let mut settings = settings::Settings::register();
 
     let mut timer_mode_local = settings.timer_mode;
@@ -124,7 +127,7 @@ async fn main() {
                     print_message(text);
                 }
 
-                if mem_values.room_id.changed() {
+                if mem_values.room_name.changed() {
                     current_level = rooms_ids::get_current_level(&mem_values.room_name.current, current_level);
                 }
 
@@ -134,7 +137,7 @@ async fn main() {
                     if ng_plus_offset_seconds.is_none() && mem_values.room_name.current == "tower_entrancehall" && mem_values.level_minutes.current == 0.0 && mem_values.level_seconds.current < 1.0 {
                         ng_plus_offset_seconds = Some(mem_values.file_minutes.current * 60.0 + mem_values.file_seconds.current);
                     }
-                    if ng_plus_offset_seconds.is_some() && mem_values.room_name.current == "hub_loadingscreen" {
+                    if ng_plus_offset_seconds.is_some() && (mem_values.room_name.current == "hub_loadingscreen" || mem_values.room_name.current == "Finalintro") {
                         ng_plus_offset_seconds = None;
                     }
 
@@ -162,15 +165,26 @@ async fn main() {
                     if settings.start_new_file && mem_values.room_name.current == "tower_entrancehall" && settings.start_new_file && mem_values.room_name.old == "Finalintro" {
                         timer::start();
                     }
-                    if settings.start_any_file && mem_values.room_name.current == "tower_entrancehall" && mem_values.room_name.old != "tower_entrancehall" {
+                    if settings.start_any_file && mem_values.room_name.current == "tower_entrancehall" && mem_values.room_name.old == "hub_loadingscreen" {
                         timer::start();
                     }
                     if settings.start_new_il && rooms_ids::get_starting_room(&current_level) == mem_values.room_name.current && mem_values.level_minutes.current == 0.0 && mem_values.level_seconds.current < 0.5 {
                         timer::start();
                     }
-                    if settings.start_exit_level && mem_values.room_id.changed() && rooms_ids::full_game_split_rooms(&mem_values.room_name.old) && current_level == Level::Hub {
+                    if settings.start_exit_level && mem_values.room_name.changed() && rooms_ids::full_game_split_rooms(&mem_values.room_name.old) && current_level == Level::Hub {
                         timer::start();
                     }
+                }
+
+                // reset
+                if settings.reset_enable {
+                    if settings.reset_new_file && mem_values.room_name.current == "Finalintro" && mem_values.room_name.old != "Finalintro" {
+                        timer::reset();
+                    }
+                    if settings.reset_any_file && mem_values.room_name.changed() && mem_values.room_name.current == "hub_loadingscreen" {
+                        timer::reset();
+                    }
+                    // TODO: IL reset, is it possible to avoid the fake splits when restarting using the il timer??
                 }
 
                 next_tick().await;

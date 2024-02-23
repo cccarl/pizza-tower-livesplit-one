@@ -87,6 +87,8 @@ pub struct Settings {
 
     #[default = true]
     /// On opening any file
+    ///
+    /// Careful with accidentally exiting to main menu!
     pub reset_any_file: bool,
 
     #[default = true]
