@@ -64,15 +64,13 @@ pub struct Settings {
 
     #[default = true]
     /// On ending a level
+    ///
+    /// All full game splits, including pizza face
     pub splits_level_end: bool,
 
     #[default = false]
     /// On room change
     pub splits_rooms: bool,
-
-    #[default = false]
-    /// On secret enter/exit
-    pub splits_secrets: bool,
 
     /// Reset Options
     _reset_title: Title,
@@ -115,7 +113,6 @@ impl Settings {
 
                 settings_map.insert("splits_level_end", true);
                 settings_map.insert("splits_rooms", false);
-                settings_map.insert("splits_secrets", false);
 
                 settings_map.insert("reset_new_file", true);
                 settings_map.insert("reset_any_file", false);
@@ -129,7 +126,6 @@ impl Settings {
 
                 settings_map.insert("splits_level_end", true);
                 settings_map.insert("splits_rooms", true);
-                settings_map.insert("splits_secrets", true);
 
                 settings_map.insert("reset_new_file", true);
                 settings_map.insert("reset_any_file", true);
@@ -143,7 +139,6 @@ impl Settings {
 
                 settings_map.insert("splits_level_end", true);
                 settings_map.insert("splits_rooms", false);
-                settings_map.insert("splits_secrets", false);
 
                 settings_map.insert("reset_new_file", true);
                 settings_map.insert("reset_any_file", true);
@@ -157,7 +152,6 @@ impl Settings {
 
                 settings_map.insert("splits_level_end", true);
                 settings_map.insert("splits_rooms", false);
-                settings_map.insert("splits_secrets", false);
 
                 settings_map.insert("reset_new_file", true);
                 settings_map.insert("reset_any_file", true);

@@ -1,5 +1,5 @@
 use crate::{MemoryAddresses, MemoryValues};
-use asr::{print_message, signature::Signature, watcher::Pair, Address, Process};
+use asr::{signature::Signature, watcher::Pair, Address, Process};
 
 // the array with all the room names
 const ROOM_ID_ARRAY_SIG: Signature<13> = Signature::new("74 0C 48 8B 05 ?? ?? ?? ?? 48 8B 04 D0");
@@ -175,7 +175,7 @@ pub fn refresh_mem_values<'a>(
     if let Some(address) = memory_addresses.main_address {
         main_address = address;
     } else {
-        return Err("Main Address in None in refresh mem values function");
+        return Err("Main Address is None in refresh mem values function");
     }
 
     if let Ok(value) = process.read::<i32>(Address::new(

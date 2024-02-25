@@ -1,4 +1,4 @@
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum Level {
     Hub,
     F1Tutorial,
@@ -36,14 +36,18 @@ pub enum Level {
 pub fn get_current_level(room_name: &str, prev_level: Level) -> Level {
 
     // special cases for rooms that overlap in multiple levels
-    // TODO: 
-    // ctop -> don't change in normal hub rooms
-    // SOTW: -> don't change if room has "secret" in it
+    if prev_level == Level::F5CrumblingTower && room_name.contains("tower_") && room_name != "tower_pizzafacehall" {
+        return Level::F5CrumblingTower;
+    }
+
+    if prev_level == Level::SecretsOfTheWorld && room_name.contains("secret") {
+        return Level::SecretsOfTheWorld;
+    }
 
     match room_name {
         "tower_finalhallway" => Level::F5CrumblingTower,
         x if x.contains("tower_tutorial") => Level::F1Tutorial,
-        x if x.contains("tower_") => Level::Hub,
+        x if x.contains("tower_") || x == "boss_pizzafacehub" => Level::Hub,
         x if x.contains("entrance_") => Level::F1JohnGutter,
         x if x.contains("medieval_") => Level::F1Pizzascape,
         x if x.contains("ruin_") => Level::F1AncientCheese,
@@ -177,6 +181,7 @@ pub fn full_game_split_rooms(exited_level: &str) -> bool {
         "boss_vigilante",
         "boss_noise",
         "boss_fakepepkey",
+        "boss_pizzafacefinale",
         "rank_room",
     ].contains(&exited_level)
     
