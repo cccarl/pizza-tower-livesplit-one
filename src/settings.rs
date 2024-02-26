@@ -1,8 +1,9 @@
 use asr::print_message;
 use asr::settings::gui::Title;
 use asr::settings::Gui;
+use asr::watcher::Pair;
 
-#[derive(Gui, Clone, Copy, PartialEq, Debug)]
+#[derive(Gui, Clone, Copy, PartialEq, std::cmp::Eq, Debug)]
 pub enum TimerMode {
     /// Full Game
     #[default]
@@ -24,7 +25,7 @@ pub struct Settings {
     _igt_mode: Title,
 
     /// Pick a Mode
-    pub timer_mode: TimerMode,
+    pub timer_mode: Pair<TimerMode>,
 
     #[default = true]
     /// Load recommended settings when switching mode
@@ -96,7 +97,7 @@ pub struct Settings {
 
 impl Settings {
     pub fn load_default_settings_for_mode(&mut self) {
-        print_message(&format!("Picked new mode: {:#?}", self.timer_mode));
+        print_message(&format!("Picked new mode: {:#?}", self.timer_mode.current));
 
         if !self.timer_mode_load_defaults {
             return;
@@ -104,7 +105,7 @@ impl Settings {
 
         let settings_map = asr::settings::Map::load();
 
-        match self.timer_mode {
+        match self.timer_mode.current {
             TimerMode::FullGame => {
                 settings_map.insert("start_new_file", true);
                 settings_map.insert("start_any_file", false);

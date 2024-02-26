@@ -145,7 +145,6 @@ pub fn buffer_helper_sigscan_init(process: &asr::Process) -> Result<asr::Address
         let address = range.address().unwrap_or_default().value();
         let size = range.size().unwrap_or_default();
         if let Some(address) = BUFFER_MAGIC_NUMBER.scan_process_range(process, (address, size)) {
-            asr::print_message("Found this bitch");
             helper_address = Some(address);
             break;
         }
@@ -160,8 +159,8 @@ pub fn buffer_helper_sigscan_init(process: &asr::Process) -> Result<asr::Address
         asr::print_message("Buffer sigscan complete");
         Ok(add)
     } else {
-        let error_message = "Could not complete the buffer helper sigscan.";
-        asr::print_message(error_message);
+        asr::print_message("Could not complete the buffer helper sigscan. Is the \"-livesplit\" launch option set?");
+        asr::print_message("Continuing with the basic real time and split features.");
         Err(())
     }
 }

@@ -40,21 +40,20 @@ struct MemoryValues {
 }
 
 const MAIN_MODULE: &str = "PizzaTower.exe";
+const TICK_RATE_MAIN_LOOP: f64 = 240.0;
+const TICK_RATE_INIT: f64 = 1.0;
 
 async fn main() {
     
     // startup
-    asr::set_tick_rate(240.0);
+    asr::set_tick_rate(TICK_RATE_INIT);
     let mut settings = settings::Settings::register();
-
-    let mut timer_mode_local = settings.timer_mode;
 
     loop {
         // check if settings GUI changes
         settings.update();
-        if timer_mode_local != settings.timer_mode {
+        if settings.timer_mode.changed() {
             settings.load_default_settings_for_mode();
-            timer_mode_local = settings.timer_mode;
         }
 
         let process_option = Process::attach(MAIN_MODULE);
@@ -74,7 +73,7 @@ async fn main() {
             }
         }
 
-        print_message("Connected to Pizza Tower the pizzapasta game");
+        print_message("Connected to Pizza Tower the pizzapasta game!!!");
 
         process.until_closes(async {
 
@@ -106,34 +105,39 @@ async fn main() {
                 }
             }
 
-            print_message(&format!("Current room:{}", mem_values.room_id.current));
-
-            mem_addresses.room_names = memory::room_name_array_sigscan_start(&process).into_option();
             mem_addresses.buffer_helper = memory::buffer_helper_sigscan_init(&process).into_option();
+            // not needed if helper was found
+            if mem_addresses.buffer_helper.is_none() {
+                mem_addresses.room_names = memory::room_name_array_sigscan_start(&process).into_option();
+            }
 
-            // variables declaration for the main loop
-            let mut current_level = rooms_ids::Level::Unkown;
-            let mut igt_file_secs_calculated: Pair<f64> = Pair::default();
-            let mut igt_level_secs_calculated: Pair<f64> = Pair::default();
+            // ready for main loop
+            if mem_addresses.room_names.is_some() || mem_addresses.buffer_helper.is_some() {
 
-            let mut ng_plus_offset_seconds: Option<f64> = None;
-            let mut iw_offset_seconds: Option<f64> = None;
+                // variables declaration for the main loop
+                let mut current_level = rooms_ids::Level::Unkown;
+                let mut igt_file_secs_calculated: Pair<f64> = Pair::default();
+                let mut igt_level_secs_calculated: Pair<f64> = Pair::default();
 
-            let mut enable_full_game_split = false;
-            let mut ctop_oob_split = false; // should only happen once per run
+                let mut ng_plus_offset_seconds: Option<f64> = None;
+                let mut iw_offset_seconds: Option<f64> = None;
 
-            let mut last_room_split_name = String::new();
-            let mut last_room_split_time = 0.0;
+                let mut enable_full_game_split = false;
+                let mut ctop_oob_split = false; // should only happen once per run
 
-            loop {
+                let mut last_room_split_name = String::new();
+                let mut last_room_split_time = 0.0;
+
+                asr::set_tick_rate(TICK_RATE_MAIN_LOOP);
+
+                loop {
 
                 // makes the livesplit game time frozen, if not used it stutters when the igt stops advancing
                 timer::pause_game_time();
 
                 settings.update();
-                if timer_mode_local != settings.timer_mode {
+                if settings.timer_mode.changed() {
                     settings.load_default_settings_for_mode();
-                    timer_mode_local = settings.timer_mode;
                 }
 
                 if let Err(text) = refresh_mem_values(&process, &mem_addresses, &mut mem_values) {
@@ -176,7 +180,7 @@ async fn main() {
                 }
 
                 // game time set
-                let game_time_livesplit = match settings.timer_mode {
+                let game_time_livesplit = match settings.timer_mode.current {
                     TimerMode::FullGame => igt_file_secs_calculated.current,
                     TimerMode::IL => igt_level_secs_calculated.current,
                     TimerMode::NewGamePlus => igt_file_secs_calculated.current - ng_plus_offset_seconds.unwrap_or(0.0),
@@ -258,6 +262,9 @@ async fn main() {
                 }
 
                 next_tick().await;
+            }
+            } else {
+                asr::set_tick_rate(TICK_RATE_INIT);
             }
         }).await;
     }
