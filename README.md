@@ -1,13 +1,12 @@
 # Pizza Tower Livesplit One Autosplitter
 
-Experimental Autosplitter for Pizza Tower using the new autosplitting runtime for LiveSplit One and LiveSplit. If you only want to use it for full game runs with the original LiveSplit, I recommend simply using the official AutoSplitter that can be found in the "Edit Splits" menu instead!
+Experimental Autosplitter for Pizza Tower using the new autosplitting runtime for LiveSplit One and LiveSplit. If you only want to use it for full game runs with the original LiveSplit, it's recommend to simply use the official AutoSplitter that can be found in the "Edit Splits" menu instead!
 
 ## Features:
 
-* Full game autosplitter mode, splits when exiting the last room of each level, starts when starting a new file and resets when going back to the main menu.
-* IL autosplitter mode, starts when entering any level, resets on level restarts or going back to the hub, and splits on every new room the player enters. 
-* Reads the game time of the game, also compatible with the Speedrun IGT Mod: https://gamebanana.com/mods/445080
-* Most features are robust against game updates.
+* 4 Game Time modes for LiveSplit: Full Game, Individual Level, New Game+ and Individual World. Remember to use the launch option "-livesplit" in Pizza Tower for this!
+* Customizable start, split and reset events using the new GUI for the autosplitting runtime.
+* Tick Rate of 240hz, ASL splitters struggle to keep up with a 60hz tick rate.
 
 ## How to add to LiveSplit:
 
@@ -15,8 +14,6 @@ Experimental Autosplitter for Pizza Tower using the new autosplitting runtime fo
 2. Edit Layout...
 3. \+ Button -> Control -> Auto Splitting Runtime.
 4. Open the added component and look for the WASM file using the file explorer at the top of the window.
-
-Note: WAR's final split is -0.21 seconds late, an offset could fix that.
 
 
 # Building the WASM file
@@ -29,7 +26,7 @@ Recommended to use cargo watch while developing:
 
 * ` $ cargo watch -x "build --target wasm32-unknown-unknown"`
 
-To build for release:
+To build for release (also works with `cargo watch`):
 
 * `$ cargo build --release --target wasm32-unknown-unknown`
 

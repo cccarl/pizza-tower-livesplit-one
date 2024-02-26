@@ -7,7 +7,20 @@ edition = "2021"
 
 [dependencies]
 spinning_top = "0.2.3"
-asr = { git = "https://github.com/LiveSplit/asr", features = ["derive", "signature", "flags"]}
+asr = { git = "https://github.com/LiveSplit/asr", features = [
+    "alloc", # Working with allocations.
+    "derive", # Defining your own settings structs, converting endianness, and binding to .NET classes.
+    # "flags", # Working with bit flags.
+    # "float-vars", # Setting floating point variables.
+    # "float-vars-small", # Setting floating point variables (small binary size).
+    # "integer-vars", # Setting integer variables.
+    "signature", # Scanning signatures.
+    # "wasi-no-std", # Support for no_std on WASI.
+    # "unity", # Accessing games using the Unity engine.
+    # "gba", # Accessing Game Boy Advance emulators.
+    # "genesis", # Accessing Genesis emulators.
+    # "ps1", # Accessing PlayStation emulators.
+]}
 once_cell = "1.17.1"
 
 [lib]
