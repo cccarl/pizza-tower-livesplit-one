@@ -2,6 +2,7 @@
 pub enum Level {
     Hub,
     F1Tutorial,
+    F1TutorialNoise,
     F1JohnGutter,
     F1Pizzascape,
     F1AncientCheese,
@@ -30,7 +31,7 @@ pub enum Level {
     Fake,
     PizzaFace,
     ResultsScreen,
-    Unkown,
+    Unknown,
 }
 
 pub fn get_current_level(room_name: &str, prev_level: Level) -> Level {
@@ -46,6 +47,7 @@ pub fn get_current_level(room_name: &str, prev_level: Level) -> Level {
 
     match room_name {
         "tower_finalhallway" => Level::F5CrumblingTower,
+        x if x.contains("tower_tutorial1N") || x.contains("tower_tutorial2N") || x.contains("tower_tutorial3N") => Level::F1TutorialNoise,
         x if x.contains("tower_tutorial") => Level::F1Tutorial,
         x if x.contains("tower_") || x == "boss_pizzafacehub" => Level::Hub,
         x if x.contains("entrance_") => Level::F1JohnGutter,
@@ -75,7 +77,7 @@ pub fn get_current_level(room_name: &str, prev_level: Level) -> Level {
         x if x.contains("war_") => Level::F5War,
         "boss_pizzaface" => Level::PizzaFace,
         "rank_room" => Level::ResultsScreen,
-        _ => Level::Unkown, // where did you go?
+        _ => Level::Unknown, // where did you go?
     }
 }
 
@@ -83,6 +85,7 @@ pub fn get_starting_room<'a>(level: &Level) -> &'a str {
 
     match level {
         Level::F1Tutorial => "tower_tutorial1",
+        Level::F1TutorialNoise => "tower_tutorial1N",
         Level::F1JohnGutter => "entrance_1",
         Level::F1Pizzascape => "medieval_1",
         Level::F1AncientCheese => "ruin_1",
@@ -123,6 +126,7 @@ pub fn full_game_split_unlock_rooms(current_room: &str) -> bool {
 
     return [
         "tower_tutorial10",
+        "tower_tutorial3N",
         "entrance_10",
         "medieval_10",
         "ruin_11",
@@ -146,7 +150,7 @@ pub fn full_game_split_unlock_rooms(current_room: &str) -> bool {
         "boss_vigilante",
         "boss_noise",
         "boss_fakepepkey",
-        "boss_pizzafacefinale",
+        "boss_pizzaface",
     ].contains(&current_room)
 
 }
@@ -158,6 +162,7 @@ pub fn full_game_split_rooms(exited_level: &str) -> bool {
 
     return [
         "tower_tutorial1",
+        "tower_tutorial1N",
         "entrance_1",
         "medieval_1",
         "ruin_1",
@@ -181,6 +186,7 @@ pub fn full_game_split_rooms(exited_level: &str) -> bool {
         "boss_vigilante",
         "boss_noise",
         "boss_fakepepkey",
+        "boss_pizzaface",
         "boss_pizzafacefinale",
         "rank_room",
     ].contains(&exited_level)

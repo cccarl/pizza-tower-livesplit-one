@@ -197,7 +197,7 @@ pub fn refresh_mem_values<'a>(
         0x98: level seconds (f64)
         0xA0: current room (string)
         0xE0: end of level fade exists (bool / u8)
-        0xE1: (my experiment for now) boss HP (u8)
+        0xE1: boss HP (u8)
         */
 
         // game version doesn't need to be updated more tha once...

@@ -41,7 +41,7 @@ struct MemoryValues {
 
 const MAIN_MODULE: &str = "PizzaTower.exe";
 const TICK_RATE_MAIN_LOOP: f64 = 240.0;
-const TICK_RATE_INIT: f64 = 1.0;
+const TICK_RATE_INIT: f64 = 40.0;
 
 async fn main() {
     
@@ -115,7 +115,7 @@ async fn main() {
             if mem_addresses.room_names.is_some() || mem_addresses.buffer_helper.is_some() {
 
                 // variables declaration for the main loop
-                let mut current_level = rooms_ids::Level::Unkown;
+                let mut current_level = rooms_ids::Level::Unknown;
                 let mut igt_file_secs_calculated: Pair<f64> = Pair::default();
                 let mut igt_level_secs_calculated: Pair<f64> = Pair::default();
 
