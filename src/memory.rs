@@ -269,7 +269,13 @@ pub fn refresh_mem_values<'a>(
             update_pair("Level Minutes", value, &mut memory_values.level_minutes);
         };
 
-        read_string_and_update_pair(process, Address::new(0), &[room_add], "Room Name (Buffer)", &mut memory_values.room_name);
+        read_string_and_update_pair(
+            process,
+            Address::new(0),
+            &[room_add],
+            "Room Name (Buffer)",
+            &mut memory_values.room_name,
+        );
 
         if let Ok(value) = process.read::<bool>(Address::new(end_level_fade_add)) {
             update_pair("End Fade Exists", value, &mut memory_values.end_of_level);
@@ -279,7 +285,6 @@ pub fn refresh_mem_values<'a>(
             update_pair("Boss HP", value, &mut memory_values.boss_hp);
         };
     } else {
-
         // with the current room id value as an offset, find its name in the array
         let curr_room_name_add = process.read::<u64>(Address::new(
             memory_addresses

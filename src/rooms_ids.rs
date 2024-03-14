@@ -35,9 +35,11 @@ pub enum Level {
 }
 
 pub fn get_current_level(room_name: &str, prev_level: Level) -> Level {
-
     // special cases for rooms that overlap in multiple levels
-    if prev_level == Level::F5CrumblingTower && room_name.contains("tower_") && room_name != "tower_pizzafacehall" {
+    if prev_level == Level::F5CrumblingTower
+        && room_name.contains("tower_")
+        && room_name != "tower_pizzafacehall"
+    {
         return Level::F5CrumblingTower;
     }
 
@@ -47,7 +49,12 @@ pub fn get_current_level(room_name: &str, prev_level: Level) -> Level {
 
     match room_name {
         "tower_finalhallway" => Level::F5CrumblingTower,
-        x if x.contains("tower_tutorial1N") || x.contains("tower_tutorial2N") || x.contains("tower_tutorial3N") => Level::F1TutorialNoise,
+        x if x.contains("tower_tutorial1N")
+            || x.contains("tower_tutorial2N")
+            || x.contains("tower_tutorial3N") =>
+        {
+            Level::F1TutorialNoise
+        }
         x if x.contains("tower_tutorial") => Level::F1Tutorial,
         x if x.contains("tower_") || x == "boss_pizzafacehub" => Level::Hub,
         x if x.contains("entrance_") => Level::F1JohnGutter,
@@ -82,7 +89,6 @@ pub fn get_current_level(room_name: &str, prev_level: Level) -> Level {
 }
 
 pub fn get_starting_room<'a>(level: &Level) -> &'a str {
-
     match level {
         Level::F1Tutorial => "tower_tutorial1",
         Level::F1TutorialNoise => "tower_tutorial1N",
@@ -115,15 +121,12 @@ pub fn get_starting_room<'a>(level: &Level) -> &'a str {
         Level::PizzaFace => "boss_pizzaface",
         _ => "-",
     }
-
 }
-
 
 /**
  * Returns true if a key room that should enable the split for the current level (in full game) is received
  */
 pub fn full_game_split_unlock_rooms(current_room: &str) -> bool {
-
     return [
         "tower_tutorial10",
         "tower_tutorial3N",
@@ -151,22 +154,21 @@ pub fn full_game_split_unlock_rooms(current_room: &str) -> bool {
         "boss_noise",
         "boss_fakepepkey",
         "boss_pizzaface",
-    ].contains(&current_room)
-
+    ]
+    .contains(&current_room);
 }
 
 /**
  * Return true if it receives a room that should trigger a split, usually where the levels end
  */
 pub fn full_game_split_rooms(exited_level: &str) -> bool {
-
     return [
         "tower_tutorial1",
         "tower_tutorial1N",
         "entrance_1",
         "medieval_1",
         "ruin_1",
-        "dungeon_1" ,
+        "dungeon_1",
         "badland_1",
         "graveyard_1",
         "farm_2",
@@ -189,6 +191,6 @@ pub fn full_game_split_rooms(exited_level: &str) -> bool {
         "boss_pizzaface",
         "boss_pizzafacefinale",
         "rank_room",
-    ].contains(&exited_level)
-    
+    ]
+    .contains(&exited_level);
 }
