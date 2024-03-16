@@ -1,6 +1,6 @@
 # Pizza Tower Livesplit One Autosplitter
 
-Experimental Autosplitter for Pizza Tower using the new autosplitting runtime for LiveSplit One and LiveSplit. If you only want to use it for full game runs with the original LiveSplit, it's recommend to simply use the official AutoSplitter that can be found in the "Edit Splits" menu instead!
+Main Autosplitter for Pizza Tower using the new autosplitting runtime for LiveSplit One and LiveSplit.
 
 ## Features:
 
@@ -8,7 +8,13 @@ Experimental Autosplitter for Pizza Tower using the new autosplitting runtime fo
 * Customizable start, split and reset events using the new GUI for the autosplitting runtime.
 * Tick Rate of 240hz, ASL splitters struggle to keep up with a 60hz tick rate.
 
-## How to add to LiveSplit:
+## How to use from original LiveSplit
+
+1. Open LiveSplit.
+2. Set game name as "Pizza Tower".
+3. Click "Activate" button.
+
+## How to manually add release to LiveSplit:
 
 1. Right Click.
 2. Edit Layout...
