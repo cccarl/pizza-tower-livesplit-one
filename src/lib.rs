@@ -1,5 +1,3 @@
-extern crate alloc;
-
 use asr::{
     future::{next_tick, IntoOption},
     print_message,
@@ -18,7 +16,7 @@ mod memory;
 mod rooms_ids;
 mod settings;
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default, Clone)]
 struct MemoryAddresses {
     main_address: Option<asr::Address>,
     room_id: Option<asr::Address>,
@@ -77,7 +75,7 @@ async fn main() {
         process.until_closes(async {
 
             // init
-            if let Ok(address) = memory::room_id_sigscan_start(&process, mem_addresses) {
+            if let Ok(address) = memory::room_id_sigscan_start(&process, mem_addresses.clone()) {
                 mem_addresses.room_id = Some(address);
             } else {
                 mem_addresses.room_id = None;
@@ -191,7 +189,7 @@ async fn main() {
 
                     // start
                     if settings.start_enable {
-                        if settings.start_new_file && mem_values.room_name.current == "tower_entrancehall" && settings.start_new_file && mem_values.room_name.old == "Finalintro" {
+                        if settings.start_new_file && mem_values.room_name.current == "tower_entrancehall" && mem_values.room_name.old == "Finalintro" {
                             timer::start();
                         }
                         if settings.start_any_file && mem_values.room_name.current == "tower_entrancehall" && mem_values.room_name.old == "hub_loadingscreen" {
@@ -250,15 +248,13 @@ async fn main() {
                             }
                         }
 
-                        if settings.splits_rooms {
+                        if settings.splits_rooms
+                        && (igt_level_secs_calculated.current - last_room_split_time > 2.0 || mem_values.room_name.current != last_room_split_name)
+                        && (mem_values.room_name.changed() || mem_values.end_of_level.current && mem_values.end_of_level.old) {
+                            last_room_split_time = igt_level_secs_calculated.current;
+                            last_room_split_name = mem_values.room_name.old.clone();
 
-                            if (igt_level_secs_calculated.current - last_room_split_time > 2.0 || mem_values.room_name.current != last_room_split_name)
-                            && (mem_values.room_name.changed() || mem_values.end_of_level.current && mem_values.end_of_level.old) {
-                                last_room_split_time = igt_level_secs_calculated.current;
-                                last_room_split_name = mem_values.room_name.old.clone();
-                                asr::timer::split();
-                            }
-
+                            asr::timer::split();
                         }
 
                     }

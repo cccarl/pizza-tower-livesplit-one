@@ -127,7 +127,7 @@ pub fn get_starting_room<'a>(level: &Level) -> &'a str {
  * Returns true if a key room that should enable the split for the current level (in full game) is received
  */
 pub fn full_game_split_unlock_rooms(current_room: &str) -> bool {
-    return [
+    [
         "tower_tutorial10",
         "tower_tutorial3N",
         "entrance_10",
@@ -155,14 +155,14 @@ pub fn full_game_split_unlock_rooms(current_room: &str) -> bool {
         "boss_fakepepkey",
         "boss_pizzaface",
     ]
-    .contains(&current_room);
+    .contains(&current_room)
 }
 
 /**
  * Return true if it receives a room that should trigger a split, usually where the levels end
  */
 pub fn full_game_split_rooms(exited_level: &str) -> bool {
-    return [
+    [
         "tower_tutorial1",
         "tower_tutorial1N",
         "entrance_1",
@@ -192,5 +192,5 @@ pub fn full_game_split_rooms(exited_level: &str) -> bool {
         "boss_pizzafacefinale",
         "rank_room",
     ]
-    .contains(&exited_level);
+    .contains(&exited_level)
 }

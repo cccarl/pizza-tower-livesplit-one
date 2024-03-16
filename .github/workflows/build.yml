@@ -29,10 +29,10 @@ jobs:
         if: github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v1
         with:
-          files: target/wasm32-unknown-unknown/release/{{project-name}}.wasm
+          files: target/wasm32-unknown-unknown/release/pizza_tower_ls_wasm.wasm
           name: Latest
           tag_name: latest
-          body: This contains the latest version of the auto splitter.
+          body: This contains the latest version of the auto splitter. These builds are automatic now so no patch notes, but you can look through the repository's commits.
 
   clippy:
     name: Check clippy lints

@@ -186,7 +186,7 @@ pub fn refresh_mem_values<'a>(
     }
 
     // only update if buffer helper was found
-    if let Some(_) = memory_addresses.buffer_helper {
+    if memory_addresses.buffer_helper.is_some() {
         /*
         Buffer documentation:
         0x00: magic numbers
@@ -209,7 +209,7 @@ pub fn refresh_mem_values<'a>(
                 + 0x40;
 
             read_string_and_update_pair(
-                &process,
+                process,
                 Address::new(0),
                 &[game_version],
                 "Game Version",
@@ -296,7 +296,7 @@ pub fn refresh_mem_values<'a>(
 
         match curr_room_name_add {
             Ok(add) => read_string_and_update_pair(
-                &process,
+                process,
                 Address::new(0),
                 &[add],
                 "Room Name (GM Array)",
