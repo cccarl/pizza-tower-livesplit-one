@@ -187,6 +187,7 @@ pub fn refresh_mem_values<'a>(
 
     // only update if buffer helper was found
     if let Some(_) = memory_addresses.buffer_helper {
+        
         /*
         Buffer documentation:
         0x00: magic numbers
