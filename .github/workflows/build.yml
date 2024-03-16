@@ -23,7 +23,7 @@ jobs:
 
       - name: Build
         run: |
-          cargo b --release --locked
+          cargo b --release --offline
 
       - name: Release
         if: github.ref == 'refs/heads/master'
