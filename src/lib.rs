@@ -179,7 +179,7 @@ async fn main() {
                     if mem_addresses.buffer_helper.is_some() {
                         // makes the livesplit game time frozen, if not used it stutters when the igt stops advancing
                         timer::pause_game_time();
-                    
+
                         let game_time_livesplit = match settings.timer_mode.current {
                             TimerMode::FullGame => igt_file_secs_calculated.current,
                             TimerMode::IL => igt_level_secs_calculated.current,
