@@ -2,11 +2,11 @@ name: Build
 
 on:
   pull_request:
+    branches:
+      - master
   push:
     branches:
-      - 'master'
-    tags:
-      - '*'
+      - master
 
 jobs:
   build:
@@ -20,10 +20,13 @@ jobs:
 
       - name: Install Rust
         uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: stable
+          targets: wasm32-unknown-unknown
 
       - name: Build
         run: |
-          cargo b --release
+          cargo b --release --locked
 
       - name: Release
         if: github.ref == 'refs/heads/master'
