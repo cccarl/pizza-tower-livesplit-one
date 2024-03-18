@@ -1,3 +1,11 @@
+# Deprecated, replaced by new version
+
+Go here: https://github.com/cccarl/pizza-tower-autosplitter
+
+It was easier to start from a new template rather than fixing the project setup (https://github.com/LiveSplit/auto-splitter-template), keeping this for the commit history.
+
+## Old description below:
+
 # Pizza Tower Livesplit One Autosplitter
 
 Main Autosplitter for Pizza Tower using the new autosplitting runtime for LiveSplit One and LiveSplit.

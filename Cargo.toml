@@ -27,4 +27,7 @@ once_cell = "1.17.1"
 crate-type = ["cdylib"]
 
 [profile.release]
+lto = true
 panic = "abort"
+codegen-units = 1
+strip = true
